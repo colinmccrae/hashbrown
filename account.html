@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Account Management - Hash Brown Engineering">
+    <title>Account - Hash Brown Engineering</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 1rem;
+        }
+        h1 {
+            color: #5a3921;
+            margin-bottom: 0.5rem;
+        }
+        h2 {
+            color: #7d5a3b;
+            margin-top: 2rem;
+        }
+        a {
+            color: #5a3921;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 1rem;
+        }
+        nav {
+            display: flex;
+            justify-content: center;
+            margin: 1rem 0;
+            background-color: #f8f4f1;
+            padding: 0.5rem;
+            border-radius: 5px;
+        }
+        nav a {
+            margin: 0 15px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        nav a:hover {
+            background-color: #e6d7c3;
+            text-decoration: none;
+        }
+        nav a.active {
+            background-color: #5a3921;
+            color: white;
+        }
+        .placeholder {
+            text-align: center;
+            margin: 3rem 0;
+            padding: 2rem;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+            color: #777;
+        }
+        
+        /* Login Form Styles */
+        .login-container {
+            max-width: 400px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #f8f4f1;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #5a3921;
+        }
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        button {
+            background-color: #5a3921;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #7d5a3b;
+        }
+        .forgotten-password {
+            display: block;
+            text-align: right;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        
+        /* User Profile Styles */
+        .user-profile {
+            display: none; /* Hidden by default */
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #f8f4f1;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .profile-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .profile-picture {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #ddd;
+            margin-right: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            color: #777;
+        }
+        .profile-name {
+            font-size: 1.5rem;
+            margin: 0;
+            color: #5a3921;
+        }
+        .profile-role {
+            color: #777;
+            margin: 0.3rem 0 0 0;
+        }
+        .profile-details {
+            margin-top: 1.5rem;
+        }
+        .profile-details h3 {
+            color: #7d5a3b;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 0.5rem;
+        }
+        .detail-row {
+            display: flex;
+            margin-bottom: 0.8rem;
+        }
+        .detail-label {
+            width: 30%;
+            font-weight: bold;
+            color: #5a3921;
+        }
+        .detail-value {
+            width: 70%;
+        }
+        .logout-button {
+            margin-top: 2rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Hash Brown Engineering</h1>
+        <p>Process Engineering Solutions</p>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="account.html" class="active">Account</a>
+            <a href="tools.html">Tools</a>
+            <a href="wallet.html">Wallet</a>
+            <a href="chat.html">Chat</a>
+        </nav>
+    </header>
+    
+    <main>
+        <h2>Account Management</h2>
+        
+        <!-- Login Form -->
+        <div id="loginForm" class="login-container">
+            <h3>Login to Your Account</h3>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                    <a href="#" class="forgotten-password">Forgotten password?</a>
+                </div>
+                <button type="button" onclick="login()">Log In</button>
+                <div class="register-link">
+                    <p>Don't have an account? <a href="#">Register now</a></p>
+                </div>
+            </form>
+        </div>
+        
+        <!-- User Profile (hidden by default) -->
+        <div id="userProfile" class="user-profile">
+            <div class="profile-header">
+                <div class="profile-picture">CM</div>
+                <div>
+                    <h3 class="profile-name">Colin McCrae</h3>
+                    <p class="profile-role">Process Engineer</p>
+                </div>
+            </div>
+            
+            <div class="profile-details">
+                <h3>Personal Information</h3>
+                <div class="detail-row">
+                    <div class="detail-label">Email</div>
+                    <div class="detail-value">colin@hashbrowneng.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Phone</div>
+                    <div class="detail-value">+44 7700 900123</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Location</div>
+                    <div class="detail-value">London, UK</div>
+                </div>
+            </div>
+            
+            <div class="profile-details">
+                <h3>Account Details</h3>
+                <div class="detail-row">
+                    <div class="detail-label">Membership</div>
+                    <div class="detail-value">Premium</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Member Since</div>
+                    <div class="detail-value">January 2024</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Last Login</div>
+                    <div class="detail-value">Today at 10:45 AM</div>
+                </div>
+            </div>
+            
+            <div class="logout-button">
+                <button type="button" onclick="logout()">Log Out</button>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Hash Brown Engineering. All rights reserved.</p>
+    </footer>
+    <script>
+        // API base URL - change if needed for production
+        const API_BASE_URL = 'http://localhost:3000/api';
+        
+        // Check if user is already logged in on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/user`, {
+                    method: 'GET',
+                    credentials: 'include', // Include cookies for session
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUserProfile(data.user);
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        });
+        
+        // Login functionality
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            // Basic validation
+            if (!email || !password) {
+                alert('Please enter both email and password.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    credentials: 'include', // Include cookies for session
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUserProfile(data.user);
+                } else {
+                    const error = await response.json();
+                    alert(error.message || 'Login failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                alert('Connection error. Please try again later.');
+            }
+        }
+        
+        // Display user profile with data from database
+        function displayUserProfile(user) {
+            // Set user information
+            document.querySelector('.profile-name').textContent = `${user.first_name} ${user.last_name}`;
+            document.querySelector('.profile-picture').textContent = `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`;
+            
+            // Update profile details
+            document.querySelector('.profile-details:nth-of-type(1) .detail-row:nth-of-type(1) .detail-value').textContent = user.email;
+            document.querySelector('.profile-details:nth-of-type(1) .detail-row:nth-of-type(2) .detail-value').textContent = user.phone;
+            document.querySelector('.profile-details:nth-of-type(1) .detail-row:nth-of-type(3) .detail-value').textContent = user.location;
+            
+            // Update account details
+            document.querySelector('.profile-details:nth-of-type(2) .detail-row:nth-of-type(1) .detail-value').textContent = user.membership_type;
+            
+            // Format membership date
+            const createdAt = new Date(user.created_at);
+            const memberSince = `${createdAt.toLocaleString('default', { month: 'long' })} ${createdAt.getFullYear()}`;
+            document.querySelector('.profile-details:nth-of-type(2) .detail-row:nth-of-type(2) .detail-value').textContent = memberSince;
+            
+            // Format last login
+            const lastLogin = user.last_login ? new Date(user.last_login) : new Date();
+            document.querySelector('.profile-details:nth-of-type(2) .detail-row:nth-of-type(3) .detail-value').textContent = 
+                `${lastLogin.toLocaleDateString()} at ${lastLogin.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+            
+            // Hide login form
+            document.getElementById('loginForm').style.display = 'none';
+            
+            // Show user profile
+            document.getElementById('userProfile').style.display = 'block';
+            
+            // Set focus to top of page
+            window.scrollTo(0, 0);
+        }
+        
+        // Logout functionality
+        async function logout() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/logout`, {
+                    method: 'POST',
+                    credentials: 'include', // Include cookies for session
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Hide profile
+                document.getElementById('userProfile').style.display = 'none';
+                
+                // Show login form
+                document.getElementById('loginForm').style.display = 'block';
+                
+                // Clear form fields
+                document.getElementById('email').value = '';
+                document.getElementById('password').value = '';
+                
+                // Set focus to top of page
+                window.scrollTo(0, 0);
+                
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Error logging out. Please try again.');
+            }
+        }
+        
+        // Enable login with Enter key
+        document.getElementById('login-form').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                login();
+            }
+        });
+    </script>
+</body>
+</html>

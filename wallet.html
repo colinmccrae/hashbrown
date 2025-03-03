@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Digital Wallet - Hash Brown Engineering">
+    <title>Wallet - Hash Brown Engineering</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 1rem;
+        }
+        h1 {
+            color: #5a3921;
+            margin-bottom: 0.5rem;
+        }
+        h2 {
+            color: #7d5a3b;
+            margin-top: 2rem;
+        }
+        a {
+            color: #5a3921;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 1rem;
+        }
+        nav {
+            display: flex;
+            justify-content: center;
+            margin: 1rem 0;
+            background-color: #f8f4f1;
+            padding: 0.5rem;
+            border-radius: 5px;
+        }
+        nav a {
+            margin: 0 15px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        nav a:hover {
+            background-color: #e6d7c3;
+            text-decoration: none;
+        }
+        nav a.active {
+            background-color: #5a3921;
+            color: white;
+        }
+        .placeholder {
+            text-align: center;
+            margin: 3rem 0;
+            padding: 2rem;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+            color: #777;
+        }
+        
+        /* Wallet specific styles */
+        .wallet-container {
+            background-color: #f8f4f1;
+            border-radius: 10px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+        .wallet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e6d7c3;
+        }
+        .wallet-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #5a3921;
+        }
+        .wallet-title img {
+            width: 30px;
+            height: 30px;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: bold;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-disconnected {
+            background-color: #ff6b6b;
+        }
+        .status-connected {
+            background-color: #51cf66;
+        }
+        .status-pending {
+            background-color: #fcc419;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        .connect-button {
+            background-color: #5a3921;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            min-width: 140px;
+        }
+        .connect-button:hover {
+            background-color: #7d5a3b;
+        }
+        .connect-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .wallet-content {
+            padding: 1rem;
+            background-color: white;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        .wallet-info {
+            margin-top: 1.5rem;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 1.5rem;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-label {
+            color: #666;
+            font-weight: bold;
+        }
+        .info-value {
+            font-family: monospace;
+            background-color: #f8f8f8;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .address-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .copy-icon {
+            cursor: pointer;
+            color: #5a3921;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 140px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 150%;
+            left: 50%;
+            margin-left: -75px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #555 transparent transparent transparent;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .wallet-actions {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .action-button {
+            flex: 1;
+            min-width: 120px;
+            padding: 0.75rem;
+            text-align: center;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .action-button:hover {
+            background-color: #e6d7c3;
+            border-color: #5a3921;
+        }
+        .action-button i {
+            margin-right: 0.5rem;
+        }
+        .no-metamask {
+            color: #ff6b6b;
+            margin-top: 1rem;
+            text-align: center;
+            padding: 1rem;
+            background-color: #fff9f9;
+            border-radius: 5px;
+            border-left: 4px solid #ff6b6b;
+        }
+        .install-link {
+            font-weight: bold;
+            color: #ff6b6b;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Hash Brown Engineering</h1>
+        <p>Process Engineering Solutions</p>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="account.html">Account</a>
+            <a href="tools.html">Tools</a>
+            <a href="wallet.html" class="active">Wallet</a>
+            <a href="chat.html">Chat</a>
+        </nav>
+    </header>
+    
+    <main>
+        <h2>Digital Wallet</h2>
+        
+        <div class="wallet-container">
+            <div class="wallet-header">
+                <div class="wallet-title">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask Logo">
+                    <h3>MetaMask Wallet</h3>
+                </div>
+                <div class="connection-status">
+                    <span class="status-indicator status-disconnected" id="status-indicator"></span>
+                    <span id="connection-status">Disconnected</span>
+                </div>
+            </div>
+            
+            <div id="no-metamask" class="no-metamask" style="display: none;">
+                <p>MetaMask is not installed. <a href="https://metamask.io/download/" target="_blank" class="install-link">Install MetaMask</a> to continue.</p>
+            </div>
+            
+            <div id="wallet-main-content">
+                <button id="connect-button" class="connect-button">Connect Wallet</button>
+                
+                <div id="wallet-details" class="wallet-content" style="display: none;">
+                    <div class="wallet-info">
+                        <div class="info-row">
+                            <span class="info-label">Account Address</span>
+                            <div class="address-container">
+                                <span class="info-value" id="wallet-address">0x0000000000000000000000000000000000000000</span>
+                                <div class="tooltip">
+                                    <i class="fa-regular fa-copy copy-icon" onclick="copyAddress()"></i>
+                                    <span class="tooltiptext" id="copy-tooltip">Copy to clipboard</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Network</span>
+                            <span class="info-value" id="network-name">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">ETH Balance</span>
+                            <span class="info-value" id="eth-balance">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="wallet-actions">
+                        <div class="action-button">
+                            <i class="fa-solid fa-rotate"></i> Refresh
+                        </div>
+                        <div class="action-button">
+                            <i class="fa-solid fa-paper-plane"></i> Send
+                        </div>
+                        <div class="action-button">
+                            <i class="fa-solid fa-list"></i> Transactions
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Hash Brown Engineering. All rights reserved.</p>
+    </footer>
+    
+    <script>
+        // DOM elements
+        const connectButton = document.getElementById('connect-button');
+        const statusIndicator = document.getElementById('status-indicator');
+        const connectionStatus = document.getElementById('connection-status');
+        const walletDetails = document.getElementById('wallet-details');
+        const walletAddress = document.getElementById('wallet-address');
+        const networkName = document.getElementById('network-name');
+        const ethBalance = document.getElementById('eth-balance');
+        const noMetamask = document.getElementById('no-metamask');
+        const copyTooltip = document.getElementById('copy-tooltip');
+        
+        // State variables
+        let isConnected = false;
+        let currentAccount = null;
+        
+        // Check if MetaMask is installed
+        function checkIfMetaMaskIsInstalled() {
+            const { ethereum } = window;
+            if (!ethereum || !ethereum.isMetaMask) {
+                console.log("MetaMask is not installed");
+                noMetamask.style.display = 'block';
+                connectButton.disabled = true;
+                return false;
+            }
+            return true;
+        }
+        
+        // Update UI based on connection status
+        function updateConnectionStatus(connected, pending = false) {
+            isConnected = connected;
+            
+            if (pending) {
+                statusIndicator.className = 'status-indicator status-pending';
+                connectionStatus.textContent = 'Connecting...';
+                connectButton.disabled = true;
+                return;
+            }
+            
+            if (connected) {
+                statusIndicator.className = 'status-indicator status-connected';
+                connectionStatus.textContent = 'Connected';
+                connectButton.textContent = 'Disconnect';
+                walletDetails.style.display = 'block';
+            } else {
+                statusIndicator.className = 'status-indicator status-disconnected';
+                connectionStatus.textContent = 'Disconnected';
+                connectButton.textContent = 'Connect Wallet';
+                walletDetails.style.display = 'none';
+                connectButton.disabled = false;
+            }
+        }
+        
+        // Get account details
+        async function getAccountDetails(accounts) {
+            if (accounts.length === 0) {
+                console.log('No accounts found');
+                updateConnectionStatus(false);
+                return;
+            }
+            
+            currentAccount = accounts[0];
+            walletAddress.textContent = currentAccount;
+            
+            // Get network ID and name
+            try {
+                const chainId = await ethereum.request({ method: 'eth_chainId' });
+                updateNetworkInfo(chainId);
+            } catch (err) {
+                console.error('Error getting chainId:', err);
+                networkName.textContent = 'Unknown';
+            }
+            
+            // Get ETH balance
+            try {
+                const balance = await ethereum.request({
+                    method: 'eth_getBalance',
+                    params: [currentAccount, 'latest']
+                });
+                
+                // Convert from Wei (10^18) to ETH
+                const etherBalance = parseInt(balance, 16) / Math.pow(10, 18);
+                ethBalance.textContent = `${etherBalance.toFixed(4)} ETH`;
+            } catch (err) {
+                console.error('Error getting balance:', err);
+                ethBalance.textContent = 'Error';
+            }
+        }
+        
+        // Update network information
+        function updateNetworkInfo(chainId) {
+            // Common networks
+            const networks = {
+                '0x1': 'Ethereum Mainnet',
+                '0x3': 'Ropsten Testnet',
+                '0x4': 'Rinkeby Testnet',
+                '0x5': 'Goerli Testnet',
+                '0x2a': 'Kovan Testnet',
+                '0x89': 'Polygon Mainnet',
+                '0x13881': 'Polygon Mumbai',
+                '0xa86a': 'Avalanche Mainnet',
+                '0xa869': 'Avalanche Fuji'
+            };
+            
+            networkName.textContent = networks[chainId] || `Chain ID: ${chainId}`;
+        }
+        
+        // Copy wallet address to clipboard
+        function copyAddress() {
+            if (!currentAccount) return;
+            
+            navigator.clipboard.writeText(currentAccount)
+                .then(() => {
+                    copyTooltip.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyTooltip.textContent = 'Copy to clipboard';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Error copying address:', err);
+                    copyTooltip.textContent = 'Failed to copy';
+                });
+        }
+        window.copyAddress = copyAddress; // Expose to global scope
+        
+        // Connect to MetaMask
+        async function connectToMetaMask() {
+            if (!checkIfMetaMaskIsInstalled()) return;
+            
+            if (isConnected) {
+                // Disconnect (clear state)
+                updateConnectionStatus(false);
+                currentAccount = null;
+                return;
+            }
+            
+            try {
+                updateConnectionStatus(false, true); // Show pending state
+                
+                // Request account access
+                const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                
+                updateConnectionStatus(true);
+                getAccountDetails(accounts);
+            } catch (error) {
+                console.error('Error connecting to MetaMask:', error);
+                updateConnectionStatus(false);
+                
+                // Show user-friendly error
+                if (error.code === 4001) {
+                    alert('Connection rejected. Please connect to MetaMask to continue.');
+                } else {
+                    alert('Error connecting to MetaMask. Please try again.');
+                }
+            }
+        }
+        
+        // Check if already connected on page load
+        async function checkExistingConnection() {
+            if (!checkIfMetaMaskIsInstalled()) return;
+            
+            try {
+                const accounts = await ethereum.request({ method: 'eth_accounts' });
+                if (accounts.length > 0) {
+                    updateConnectionStatus(true);
+                    getAccountDetails(accounts);
+                }
+            } catch (error) {
+                console.error('Error checking existing connection:', error);
+            }
+        }
+        
+        // Initialize
+        function init() {
+            // Add event listeners
+            connectButton.addEventListener('click', connectToMetaMask);
+            
+            // Check MetaMask installation
+            if (checkIfMetaMaskIsInstalled()) {
+                // Set up ethereum events
+                ethereum.on('accountsChanged', (accounts) => {
+                    console.log('Accounts changed:', accounts);
+                    if (accounts.length === 0) {
+                        // User disconnected
+                        updateConnectionStatus(false);
+                        currentAccount = null;
+                    } else {
+                        // Account switched
+                        getAccountDetails(accounts);
+                    }
+                });
+                
+                ethereum.on('chainChanged', (chainId) => {
+                    console.log('Network changed:', chainId);
+                    updateNetworkInfo(chainId);
+                    // Reload page is recommended by MetaMask
+                    window.location.reload();
+                });
+                
+                checkExistingConnection();
+            }
+        }
+        
+        // Run initialization when the page loads
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
