@@ -1,87 +1,42 @@
-# Hash Brown Engineering Website
+# hashbrowneng.com
 
-A website for Hash Brown Engineering, a process engineering consultancy.
+The website for **Hash Brown Engineering Limited** — live at
+<https://www.hashbrowneng.com>.
 
-## Features
+It is a plain static site with two jobs: a sober front page carrying the
+company's statutory details, and an index of small web tools and experiments
+that grows over time.
 
-- Responsive design
-- User authentication system
-- PostgreSQL database integration
-- API endpoints for user management
+## Tools
 
-## Prerequisites
+| Tool | What it does |
+|---|---|
+| [Unit Converter](https://www.hashbrowneng.com/tools/unit-converter/) | Pressure, temperature, flow, length, mass, volume, density, viscosity, energy and power conversions. |
 
-- Node.js (v14 or higher)
-- PostgreSQL (v12 or higher)
+## How it is built
 
-## Setup
+Static HTML, CSS and vanilla JavaScript. No build step, no dependencies, no
+server. Hosted on GitHub Pages from the `main` branch, repo root, on a custom
+domain set by `CNAME`.
 
-1. **Install dependencies:**
-
-```bash
-npm install
-```
-
-2. **Set up the PostgreSQL database:**
-
-Make sure PostgreSQL is installed and running on your system. Then update the database configuration in `server.js` and `db_setup.js` with your PostgreSQL credentials.
-
-Default credentials are:
-- Username: postgres
-- Password: password
-- Database: hashbrown_db
-- Host: localhost
-- Port: 5432
-
-3. **Initialize the database:**
+## Local preview
 
 ```bash
-node db_setup.js
+python -m http.server 8000
 ```
 
-This script will:
-- Create the hashbrown_db database if it doesn't exist
-- Create the users table
-- Add a default user with the following credentials:
-  - Email: colin@hashbrowneng.com
-  - Password: password123
+Then open <http://localhost:8000>. Serving over HTTP matters — the pages use
+absolute paths like `/assets/style.css`, which do not resolve over `file://`.
 
-## Running the Application
+## Adding a tool
 
-1. **Start the server:**
+Each tool is a directory under `tools/` containing an `index.html`. Copy
+`tools/_template/index.html` to start, then link it from the index on
+`index.html` and add it to `sitemap.xml`. See [CLAUDE.md](CLAUDE.md) for the
+full conventions.
 
-```bash
-npm start
-```
+---
 
-2. **For development with auto-restart:**
-
-```bash
-npm run dev
-```
-
-3. **Access the application:**
-
-Open your browser and navigate to:
-- Website: http://localhost:3000/index.html
-- Account page: http://localhost:3000/account.html
-
-## API Endpoints
-
-- **POST /api/login** - Authenticate a user
-- **GET /api/user** - Get current user information
-- **POST /api/logout** - Log out the current user
-
-## Project Structure
-
-- `server.js` - Express server and API endpoints
-- `db_setup.js` - Database initialization script
-- `index.html` - Main website homepage
-- `account.html` - User authentication page
-- `tools.html`, `wallet.html`, `chat.html` - Additional feature pages
-
-## Security Notes
-
-- For production, update the session secret in `server.js`
-- Use environment variables for database credentials
-- Enable HTTPS for secure communication
+Hash Brown Engineering Limited is a private limited company registered in
+Scotland, no. SC644189. Registered office: 5 South Charlotte Street,
+Edinburgh, EH2 4AN.

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Unit Converter — Hash Brown Engineering</title>
+    <meta name="description" content="Convert between pressure, temperature, flow rate, length, mass, volume, density and viscosity units used in process and flow assurance engineering.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+        /* Tool-specific layout: the result panel and the swap control. */
+        .converter { margin-block-start: 2.5rem; }
+
+        .swap-row { display: flex; justify-content: center; margin-block: -0.35rem 0.85rem; }
+
+        .swap {
+            background: none;
+            border: 1px solid var(--rule);
+            color: var(--ink-muted);
+            border-radius: 999px;
+            padding: 0.3rem 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+        }
+        .swap:hover {
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-color: var(--accent);
+            filter: none;
+        }
+
+        .result {
+            display: block;
+            margin-block-start: 1.75rem;
+            padding: 1.4rem 1.5rem;
+            background: var(--accent-soft);
+            border-radius: 6px;
+        }
+
+        .result-value {
+            font-family: var(--font-mono);
+            font-size: clamp(1.4rem, 5vw, 1.9rem);
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .result-value.is-error {
+            font-family: var(--font-sans);
+            font-size: 1.05rem;
+            color: var(--ink-muted);
+        }
+
+        .result-restated {
+            margin-block-end: 0.45rem;
+            font-size: 0.875rem;
+            color: var(--ink-muted);
+        }
+        .result-restated:empty { display: none; }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Unit Converter</h1>
+        <p class="lede">
+            Conversions between the units that turn up in process and flow
+            assurance work. Everything runs in your browser; nothing is sent
+            anywhere.
+        </p>
+    </header>
+
+    <main class="converter">
+        <div class="field">
+            <label for="quantity">Quantity</label>
+            <select id="quantity"></select>
+        </div>
+
+        <div class="field-row">
+            <div class="field">
+                <label for="value">Value</label>
+                <input id="value" type="text" inputmode="decimal" value="1" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field">
+                <label for="from-unit">From</label>
+                <select id="from-unit"></select>
+            </div>
+        </div>
+
+        <div class="swap-row">
+            <button class="swap" type="button" id="swap">&uarr;&darr;&nbsp; Swap units</button>
+        </div>
+
+        <div class="field">
+            <label for="to-unit">To</label>
+            <select id="to-unit"></select>
+        </div>
+
+        <output class="result" id="result">
+            <div class="result-restated" id="result-restated"></div>
+            <div class="result-value" id="result-value">&mdash;</div>
+        </output>
+    </main>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* Each unit converts to the base SI unit of its quantity by one factor:
+       value_in_base = value * factor. Temperature is the exception, and
+       supplies explicit to/from functions instead. */
+    var QUANTITIES = {
+        "Pressure": [
+            ["Pa — pascal", 1],
+            ["kPa — kilopascal", 1e3],
+            ["MPa — megapascal", 1e6],
+            ["bar", 1e5],
+            ["mbar — millibar", 100],
+            ["psi — lbf/in²", 6894.757293168361],
+            ["atm — standard atmosphere", 101325],
+            ["mmHg — millimetre of mercury", 133.322387415],
+            ["torr", 101325 / 760],
+            ["inH₂O — inch of water (4 °C)", 249.0889],
+            ["kgf/cm²", 98066.5]
+        ],
+        "Temperature": [
+            ["°C — Celsius", {
+                to: function (c) { return c + 273.15; },
+                from: function (k) { return k - 273.15; }
+            }],
+            ["K — kelvin", {
+                to: function (k) { return k; },
+                from: function (k) { return k; }
+            }],
+            ["°F — Fahrenheit", {
+                to: function (f) { return (f - 32) * 5 / 9 + 273.15; },
+                from: function (k) { return (k - 273.15) * 9 / 5 + 32; }
+            }],
+            ["°R — Rankine", {
+                to: function (r) { return r * 5 / 9; },
+                from: function (k) { return k * 9 / 5; }
+            }]
+        ],
+        "Length": [
+            ["m — metre", 1],
+            ["mm — millimetre", 1e-3],
+            ["cm — centimetre", 1e-2],
+            ["km — kilometre", 1e3],
+            ["in — inch", 0.0254],
+            ["ft — foot", 0.3048],
+            ["yd — yard", 0.9144],
+            ["mi — mile", 1609.344],
+            ["nmi — nautical mile", 1852]
+        ],
+        "Mass": [
+            ["kg — kilogram", 1],
+            ["g — gram", 1e-3],
+            ["t — tonne", 1e3],
+            ["lb — pound", 0.45359237],
+            ["oz — ounce", 0.028349523125],
+            ["short ton (US)", 907.18474],
+            ["long ton (UK)", 1016.0469088]
+        ],
+        "Volume": [
+            ["m³ — cubic metre", 1],
+            ["L — litre", 1e-3],
+            ["mL — millilitre", 1e-6],
+            ["ft³ — cubic foot", 0.028316846592],
+            ["bbl — oil barrel", 0.158987294928],
+            ["gal (US)", 0.003785411784],
+            ["gal (imperial)", 0.00454609]
+        ],
+        "Volumetric flow": [
+            ["m³/s", 1],
+            ["m³/h", 1 / 3600],
+            ["m³/d", 1 / 86400],
+            ["L/s", 1e-3],
+            ["L/min", 1e-3 / 60],
+            ["ft³/s", 0.028316846592],
+            ["ft³/h", 0.028316846592 / 3600],
+            ["bbl/d — barrels per day", 0.158987294928 / 86400],
+            ["gpm (US) — gallons per minute", 0.003785411784 / 60]
+        ],
+        "Mass flow": [
+            ["kg/s", 1],
+            ["kg/h", 1 / 3600],
+            ["t/h — tonne per hour", 1000 / 3600],
+            ["t/d — tonne per day", 1000 / 86400],
+            ["lb/s", 0.45359237],
+            ["lb/h", 0.45359237 / 3600]
+        ],
+        "Density": [
+            ["kg/m³", 1],
+            ["g/cm³", 1000],
+            ["kg/L", 1000],
+            ["lb/ft³", 16.018463373960138],
+            ["lb/gal (US)", 119.82642731689663],
+            ["lb/bbl", 2.853010174]
+        ],
+        "Dynamic viscosity": [
+            ["Pa·s", 1],
+            ["mPa·s", 1e-3],
+            ["cP — centipoise", 1e-3],
+            ["P — poise", 0.1],
+            ["lb/(ft·s)", 1.4881639435695537],
+            ["lbf·s/ft²", 47.88025898033584]
+        ],
+        "Kinematic viscosity": [
+            ["m²/s", 1],
+            ["mm²/s", 1e-6],
+            ["cSt — centistokes", 1e-6],
+            ["St — stokes", 1e-4],
+            ["ft²/s", 0.09290304]
+        ],
+        "Energy": [
+            ["J — joule", 1],
+            ["kJ — kilojoule", 1e3],
+            ["MJ — megajoule", 1e6],
+            ["kWh — kilowatt hour", 3.6e6],
+            ["cal — calorie", 4.184],
+            ["kcal — kilocalorie", 4184],
+            ["BTU", 1055.05585262],
+            ["MMBTU", 1055.05585262e6],
+            ["therm (UK)", 105505585.257348]
+        ],
+        "Power": [
+            ["W — watt", 1],
+            ["kW — kilowatt", 1e3],
+            ["MW — megawatt", 1e6],
+            ["hp — mechanical horsepower", 745.6998715822702],
+            ["BTU/h", 1055.05585262 / 3600],
+            ["MMBTU/h", 1055.05585262e6 / 3600]
+        ]
+    };
+
+    var quantityEl = document.getElementById("quantity");
+    var valueEl    = document.getElementById("value");
+    var fromEl     = document.getElementById("from-unit");
+    var toEl       = document.getElementById("to-unit");
+    var swapEl     = document.getElementById("swap");
+    var outValueEl = document.getElementById("result-value");
+    var outNoteEl  = document.getElementById("result-restated");
+
+    function currentUnits() {
+        return QUANTITIES[quantityEl.value];
+    }
+
+    /* Convert by way of the quantity's base unit. */
+    function convert(value, fromSpec, toSpec) {
+        var base = typeof fromSpec === "number" ? value * fromSpec : fromSpec.to(value);
+        return typeof toSpec === "number" ? base / toSpec : toSpec.from(base);
+    }
+
+    /* Readable output: plain notation while it stays short, exponent
+       otherwise, with trailing zeros trimmed either way. */
+    function format(n) {
+        if (!isFinite(n)) return "—";
+        if (n === 0) return "0";
+
+        var magnitude = Math.abs(n);
+        var text = (magnitude >= 1e-4 && magnitude < 1e12)
+            ? n.toPrecision(10)
+            : n.toExponential(8);
+
+        if (text.indexOf("e") === -1) {
+            if (text.indexOf(".") !== -1) {
+                text = text.replace(/0+$/, "").replace(/\.$/, "");
+            }
+            return text;
+        }
+
+        var parts = text.split("e");
+        var mantissa = parts[0];
+        if (mantissa.indexOf(".") !== -1) {
+            mantissa = mantissa.replace(/0+$/, "").replace(/\.$/, "");
+        }
+        return mantissa + " × 10" + superscript(Number(parts[1]));
+    }
+
+    /* Render an exponent as real superscript digits: -4 -> "⁻⁴". */
+    var SUPERSCRIPT = {
+        "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+        "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹"
+    };
+
+    function superscript(exponent) {
+        return String(exponent).split("").map(function (ch) {
+            return SUPERSCRIPT[ch] || ch;
+        }).join("");
+    }
+
+    /* Strip the descriptive half of a label: "kPa — kilopascal" -> "kPa". */
+    function symbolOf(label) {
+        return label.split(" — ")[0];
+    }
+
+    function fillUnitSelect(select, selectedIndex) {
+        var units = currentUnits();
+        select.innerHTML = "";
+        units.forEach(function (unit, i) {
+            var option = document.createElement("option");
+            option.value = String(i);
+            option.textContent = unit[0];
+            select.appendChild(option);
+        });
+        select.value = String(Math.min(selectedIndex, units.length - 1));
+    }
+
+    function onQuantityChange() {
+        fillUnitSelect(fromEl, 0);
+        fillUnitSelect(toEl, 1);
+        update();
+    }
+
+    function update() {
+        var units = currentUnits();
+        var raw = valueEl.value.trim().replace(/,/g, "");
+        var value = raw === "" ? NaN : Number(raw);
+
+        if (!isFinite(value)) {
+            outValueEl.className = "result-value is-error";
+            outValueEl.textContent = raw === ""
+                ? "Enter a value to convert."
+                : "That is not a number.";
+            outNoteEl.textContent = "";
+            return;
+        }
+
+        var from = units[Number(fromEl.value)];
+        var to   = units[Number(toEl.value)];
+
+        outValueEl.className = "result-value";
+        outValueEl.textContent = format(convert(value, from[1], to[1])) + " " + symbolOf(to[0]);
+        outNoteEl.textContent = format(value) + " " + symbolOf(from[0]) + " equals";
+    }
+
+    function swap() {
+        var held = fromEl.value;
+        fromEl.value = toEl.value;
+        toEl.value = held;
+        update();
+    }
+
+    Object.keys(QUANTITIES).forEach(function (name) {
+        var option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        quantityEl.appendChild(option);
+    });
+
+    quantityEl.addEventListener("change", onQuantityChange);
+    valueEl.addEventListener("input", update);
+    fromEl.addEventListener("change", update);
+    toEl.addEventListener("change", update);
+    swapEl.addEventListener("click", swap);
+
+    onQuantityChange();
+})();
+</script>
+</body>
+</html>

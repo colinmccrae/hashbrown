@@ -1,110 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Hash Brown Engineering - Process engineering, dynamic modelling and flow assurance consultancy">
-    <title>Hash Brown Engineering</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            color: #333;
-        }
-        header {
-            text-align: center;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 1rem;
-        }
-        h1 {
-            color: #5a3921;
-            margin-bottom: 0.5rem;
-        }
-        h2 {
-            color: #7d5a3b;
-            margin-top: 2rem;
-        }
-        a {
-            color: #5a3921;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        footer {
-            margin-top: 2rem;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #777;
-            border-top: 1px solid #ddd;
-            padding-top: 1rem;
-        }
-        nav {
-            display: flex;
-            justify-content: center;
-            margin: 1rem 0;
-            background-color: #f8f4f1;
-            padding: 0.5rem;
-            border-radius: 5px;
-        }
-        nav a {
-            margin: 0 15px;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-weight: bold;
-            transition: background-color 0.3s;
-        }
-        nav a:hover {
-            background-color: #e6d7c3;
-            text-decoration: none;
-        }
-        nav a.active {
-            background-color: #5a3921;
-            color: white;
-        }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hash Brown Engineering Limited</title>
+    <meta name="description" content="Hash Brown Engineering Limited — a flow assurance and process engineering consultancy registered in Scotland. Also home to a small collection of web tools and experiments.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://www.hashbrowneng.com/">
+    <link rel="stylesheet" href="/assets/style.css">
+
+    <!-- Social preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Hash Brown Engineering Limited">
+    <meta property="og:description" content="A flow assurance and process engineering consultancy registered in Scotland. Also home to a small collection of web tools and experiments.">
+    <meta property="og:url" content="https://www.hashbrowneng.com/">
 </head>
 <body>
-    <header>
+<a class="skip-link" href="#tools">Skip to tools</a>
+
+<div class="page">
+
+    <!-- Masthead -->
+    <header class="masthead">
         <h1>Hash Brown Engineering</h1>
-        <p>Process Engineering Solutions</p>
-        <nav>
-            <a href="index.html" class="active">Home</a>
-            <a href="account.html">Account</a>
-            <a href="tools.html">Tools</a>
-            <a href="wallet.html">Wallet</a>
-            <a href="chat.html">Chat</a>
-        </nav>
+        <p class="lede">
+            A flow assurance and process engineering consultancy, registered
+            in Scotland and based in Edinburgh. This site is also where a
+            growing collection of small web tools and experiments gets put
+            out in the open.
+        </p>
     </header>
-    
-    <main>
-        <section>
-            <h2>About Hash Brown</h2>
-            <p>An engineering consultancy specialising in process engineering, dynamic modelling and flow assurance. We provide innovative solutions for complex engineering challenges across multiple industries.</p>
-        </section>
-        
-        <section>
-            <h2>Our Services</h2>
-            <ul>
-                <li><strong>Process Engineering</strong> - Design and optimisation of industrial processes</li>
-                <li><strong>Dynamic Modelling</strong> - Simulation and analysis of dynamic systems</li>
-                <li><strong>Flow Assurance</strong> - Ensuring efficient fluid transport systems</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>Contact Information</h2>
-            <p><strong>Colin McCrae</strong><br>
-            Email: <a href="mailto:colin@hashbrowneng.com">colin@hashbrowneng.com</a></p>
-        </section>
+
+    <!-- Tools index.
+         To add a tool: create /tools/<name>/index.html, then copy one <li>
+         block below and edit it. Newest first. See CLAUDE.md. -->
+    <main class="section" id="tools">
+        <h2 class="section-label">Tools &amp; experiments</h2>
+
+        <ul class="tool-list">
+            <li>
+                <a class="tool" href="/tools/unit-converter/">
+                    <span class="tool-name">Unit Converter</span>
+                    <span class="tool-go" aria-hidden="true">&rarr;</span>
+                    <span class="tool-desc">Convert between the units that turn up in process and flow assurance work — pressure, temperature, flow rate, length, mass and volume.</span>
+                </a>
+            </li>
+        </ul>
     </main>
-    
-    <footer>
-        <p>&copy; 2025 Hash Brown Engineering. All rights reserved.</p>
+
+    <!-- Statutory company information -->
+    <section class="section" id="company">
+        <h2 class="section-label">Company information</h2>
+
+        <dl class="facts">
+            <dt>Registered name</dt>
+            <dd>Hash Brown Engineering Limited</dd>
+
+            <dt>Company number</dt>
+            <dd class="datum">SC644189</dd>
+
+            <dt>VAT number</dt>
+            <dd class="datum">GB 334762592</dd>
+
+            <dt>Registered office</dt>
+            <dd class="datum">5 South Charlotte Street<br>Edinburgh<br>EH2 4AN<br>Scotland</dd>
+
+            <dt>Company type</dt>
+            <dd>Private limited company, registered in Scotland</dd>
+
+            <dt>Incorporated</dt>
+            <dd><time datetime="2019-10-11">11 October 2019</time></dd>
+
+            <dt>Nature of business</dt>
+            <dd>SIC 71129 &mdash; Other engineering activities</dd>
+
+            <dt>Director</dt>
+            <dd>Colin McCrae</dd>
+
+            <dt>Contact</dt>
+            <dd><a href="mailto:colin@hashbrowneng.com">colin@hashbrowneng.com</a></dd>
+
+            <dt>Public register</dt>
+            <dd><a href="https://find-and-update.company-information.service.gov.uk/company/SC644189" rel="noopener">Companies House record</a></dd>
+        </dl>
+    </section>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
     </footer>
+
+</div>
 </body>
 </html>

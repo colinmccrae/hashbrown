@@ -1,0 +1,316 @@
+/* ==========================================================================
+   Hash Brown Engineering — shared stylesheet
+   Used by the landing page and by every tool under /tools/.
+   Quiet and typographic: warm paper, restrained type, one ochre accent.
+   ========================================================================== */
+
+/* --- Design tokens ------------------------------------------------------ */
+
+:root {
+    color-scheme: light dark;
+
+    --bg:          #fbfaf8;
+    --surface:     #ffffff;
+    --ink:         #1b1917;
+    --ink-muted:   #6f6a64;
+    --ink-faint:   #97918a;
+    --rule:        #e6e1d9;
+    --accent:      #9a5f28;
+    --accent-soft: #f4ece1;
+
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+    --font-sans:  ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                  Roboto, Helvetica, Arial, sans-serif;
+    --font-mono:  ui-monospace, "SF Mono", "Cascadia Mono", "Cascadia Code",
+                  Consolas, "Liberation Mono", monospace;
+
+    --measure: 44rem;
+    --gutter:  clamp(1.25rem, 5vw, 2.5rem);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg:          #14130f;
+        --surface:     #1c1a16;
+        --ink:         #ece8e1;
+        --ink-muted:   #a49e94;
+        --ink-faint:   #7c766c;
+        --rule:        #2e2b25;
+        --accent:      #d99b5b;
+        --accent-soft: #26201a;
+    }
+}
+
+/* --- Base --------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+/* Skip link — visible only once focused by keyboard. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: var(--surface);
+    color: var(--ink);
+    padding: 0.6rem 1rem;
+    z-index: 10;
+}
+.skip-link:focus { left: var(--gutter); top: 0.75rem; }
+
+/* --- Layout ------------------------------------------------------------- */
+
+.page {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: clamp(3rem, 10vw, 6rem) var(--gutter) 4rem;
+}
+
+.section { margin-block-start: clamp(3.5rem, 9vw, 5.5rem); }
+
+/* Small caps label that opens each section. */
+.section-label {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+/* --- Masthead ----------------------------------------------------------- */
+
+.masthead h1 {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 6.5vw, 2.9rem);
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+}
+
+/* Short accent rule beneath the wordmark. */
+.masthead h1::after {
+    content: "";
+    display: block;
+    width: 3.25rem;
+    height: 2px;
+    margin-block-start: 1.15rem;
+    background: var(--accent);
+}
+
+.masthead .lede {
+    margin: 1.5rem 0 0;
+    max-width: 34rem;
+    font-size: 1.075rem;
+    color: var(--ink-muted);
+    text-wrap: pretty;
+}
+
+/* --- Tools index -------------------------------------------------------- */
+
+.tool-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-block-start: 1px solid var(--rule);
+}
+
+.tool-list > li { border-block-end: 1px solid var(--rule); }
+
+.tool {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 0.15rem 1.25rem;
+    padding: 1.05rem 0.5rem 1.05rem 0;
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.15s ease, padding-inline-start 0.15s ease;
+}
+
+.tool:hover, .tool:focus-visible {
+    background: var(--accent-soft);
+    padding-inline-start: 0.6rem;
+}
+
+.tool-name {
+    font-family: var(--font-serif);
+    font-size: 1.2rem;
+    line-height: 1.3;
+}
+
+.tool:hover .tool-name { color: var(--accent); }
+
+.tool-desc {
+    grid-column: 1;
+    font-size: 0.925rem;
+    color: var(--ink-muted);
+    text-wrap: pretty;
+}
+
+/* The trailing arrow, nudged right on hover. */
+.tool-go {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+    color: var(--ink-faint);
+    font-size: 1.05rem;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.tool:hover .tool-go { color: var(--accent); transform: translateX(3px); }
+
+@media (prefers-reduced-motion: reduce) {
+    .tool, .tool-go { transition: none; }
+}
+
+.empty-note {
+    margin: 0;
+    padding: 1.25rem 0;
+    color: var(--ink-muted);
+    font-style: italic;
+}
+
+/* --- Company information ------------------------------------------------ */
+
+.facts {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(9rem, 12rem) 1fr;
+    gap: 0.1rem 1.5rem;
+}
+
+.facts dt {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-block: 0.55rem 0;
+}
+
+.facts dd {
+    margin: 0;
+    padding-block: 0.3rem 0.85rem;
+    border-block-end: 1px solid var(--rule);
+}
+
+.facts dd:last-of-type { border-block-end: none; }
+
+/* Registration numbers and addresses read better in mono. */
+.facts .datum { font-family: var(--font-mono); font-size: 0.925rem; }
+
+@media (max-width: 34rem) {
+    .facts { grid-template-columns: 1fr; }
+    .facts dt { padding-block-start: 0.9rem; }
+    .facts dd { padding-block: 0.15rem 0.75rem; }
+}
+
+/* --- Footer ------------------------------------------------------------- */
+
+.site-footer {
+    margin-block-start: clamp(3.5rem, 9vw, 5.5rem);
+    padding-block-start: 1.5rem;
+    border-block-start: 1px solid var(--rule);
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    justify-content: space-between;
+}
+
+/* --- Tool pages --------------------------------------------------------- */
+
+/* Breadcrumb back to the index, sits above a tool's own title. */
+.tool-nav {
+    margin: 0 0 2rem;
+    font-size: 0.875rem;
+}
+
+.tool-nav a { color: var(--ink-muted); text-decoration: none; }
+.tool-nav a:hover { color: var(--accent); text-decoration: underline; }
+
+.tool-header h1 {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(1.75rem, 5vw, 2.35rem);
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+.tool-header .lede {
+    margin: 0.85rem 0 0;
+    color: var(--ink-muted);
+    text-wrap: pretty;
+}
+
+/* Generic form controls, so tools look consistent without extra CSS. */
+label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-block-end: 0.4rem;
+}
+
+input, select, button, textarea {
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.6rem 0.7rem;
+    width: 100%;
+}
+
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+    border-color: var(--accent);
+}
+
+button {
+    width: auto;
+    cursor: pointer;
+    font-weight: 600;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+button:hover { filter: brightness(1.08); }
+
+.field { margin-block-end: 1.1rem; }
+
+.field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 30rem) {
+    .field-row { grid-template-columns: 1fr; }
+}
