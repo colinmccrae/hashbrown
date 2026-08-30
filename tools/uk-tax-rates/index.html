@@ -70,7 +70,8 @@
                 display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
                 text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
             }
-            .ctl-pair { display: flex; gap: 22px; align-items: flex-end; }
+            /* Wraps rather than running off the side of a narrow screen. */
+            .ctl-pair { display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end; }
             .chips { display: flex; flex-wrap: wrap; gap: 6px; }
             .chip {
                 display: inline-flex; align-items: center; gap: 7px;
