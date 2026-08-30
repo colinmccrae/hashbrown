@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UK Tax &amp; Take-Home Pay &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="Marginal rates, effective rates and take-home pay for UK employees in 2025/26 and 2026/27, comparing Scotland with the rest of the UK.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* income tax */
+                --series-2:       #eb6834;  /* national insurance */
+                --series-3:       #1baf7a;  /* combined */
+                --series-4:       #eda100;  /* child benefit charge */
+                --series-5:       #e87ba4;  /* employer NI */
+                --series-6:       #4a3aa7;  /* student loan */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                    --series-4:     #c98500;
+                    --series-5:     #d55181;
+                    --series-6:     #9085e9;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            .ctl-pair { display: flex; gap: 22px; align-items: flex-end; }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .band-wash { fill: var(--text-muted); opacity: 0.075; }
+            .band-note { fill: var(--text-muted); font-size: 10.5px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .cliff-rule { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; }
+            .cliff-note { fill: var(--text-secondary); font-size: 10.5px; font-weight: 600; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 210px; max-width: 290px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- cliff stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            .cc-group { display: flex; gap: 10px; align-items: center; }
+            .sub-ctl { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-muted); }
+            .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+            .viz-root .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            /* The shared sheet makes every <label> an uppercase block; the paired
+                  childcare selects need theirs inline and in sentence case. */
+            .viz-root label.sub-ctl {
+                display: flex;
+                text-transform: none;
+                letter-spacing: normal;
+                font-weight: 400;
+                font-size: 11.5px;
+                color: var(--ink-faint);
+                margin-block-end: 0;
+            }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style>
+</head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>UK tax &amp; take-home pay &mdash; <span id="year-heading">2026/27</span></h1>
+        <p class="lede">What the next pound of salary is really taxed at, what proportion of
+            your pay goes in tax, and what actually lands in your account &mdash; for 2025/26
+            and 2026/27, comparing Scotland with the rest of the UK.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                    <div>
+                        <span class="ctl-label" id="lbl-region">Region</span>
+                        <div class="chips" role="group" aria-labelledby="lbl-region" id="region-chips"></div>
+                    </div>
+                    <div>
+                        <span class="ctl-label" id="lbl-measure">Series</span>
+                        <div class="chips" role="group" aria-labelledby="lbl-measure" id="measure-chips"></div>
+                    </div>
+                    <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="year-sel">Tax year</label>
+                        <select id="year-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">View</label>
+                        <select id="view-sel">
+                            <option value="marginal" selected>Marginal rate</option>
+                            <option value="effective">Effective rate</option>
+                            <option value="takehome">Take-home pay</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="basis-sel">Basis</label>
+                        <select id="basis-sel">
+                            <option value="employee" selected>Employee (gross pay)</option>
+                            <option value="cost">Total employment cost</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="sl-sel">Student loan</label>
+                        <select id="sl-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="kids-sel">Children</label>
+                        <select id="kids-sel">
+                            <option value="0" selected>None</option>
+                            <option value="1">1 child</option>
+                            <option value="2">2 children</option>
+                            <option value="3">3 children</option>
+                            <option value="4">4 children</option>
+                        </select>
+                    </div>
+                    <div>
+                        <span class="ctl-label" id="lbl-cc">Children in childcare</span>
+                        <div class="cc-group" role="group" aria-labelledby="lbl-cc">
+                            <label class="sub-ctl">under 5
+                                <select id="cc-u5"><option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+                            <label class="sub-ctl">5&ndash;11
+                                <select id="cc-511"><option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="cc-rate">Funded hour worth</label>
+                        <select id="cc-rate">
+                            <option value="5">&pound;5 &middot; &pound;5,700/yr</option>
+                            <option value="6">&pound;6 &middot; &pound;6,840/yr</option>
+                            <option value="7">&pound;7 &middot; &pound;7,980/yr</option>
+                            <option value="8" selected>&pound;8 &middot; &pound;9,120/yr</option>
+                            <option value="10">&pound;10 &middot; &pound;11,400/yr</option>
+                            <option value="12">&pound;12 &middot; &pound;13,680/yr</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="range-sel">Income range</label>
+                        <select id="range-sel">
+                            <option value="60000">&pound;0 &ndash; &pound;60k</option>
+                            <option value="130000">&pound;0 &ndash; &pound;130k</option>
+                            <option value="200000" selected>&pound;0 &ndash; &pound;200k</option>
+                            <option value="300000">&pound;0 &ndash; &pound;300k</option>
+                        </select>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="plot-wrap">
+                        <svg class="chart" id="chart" viewBox="0 0 920 470" preserveAspectRatio="xMidYMid meet"
+                                  role="img" tabindex="0" aria-label="Marginal tax rate by gross income."></svg>
+                        <div class="tip" id="tip" role="status" aria-live="polite"></div>
+                        <div class="empty" id="empty" hidden>Select at least one region and one series to plot.</div>
+                    </div>
+                    <div class="legend" id="legend"></div>
+                </div>
+                <p class="caption" id="caption"></p>
+                <div class="stats" id="stats"></div>
+
+                <section class="block">
+                    <h2>Rate bands</h2>
+                    <div class="tbl-scroll">
+                        <table id="table"></table>
+                    </div>
+                </section>
+
+                <details class="notes">
+                    <summary>Assumptions &amp; sources</summary>
+                    <div class="figures" id="figures"></div>
+                    <ul>
+                        <li><strong>The full personal allowance is assumed</strong> &mdash; no marriage allowance,
+                            blind person's allowance or other adjustment. The figures panel above is generated from the
+                            data for the selected tax year, so it is always in step with the chart; the notes below
+                            describe the rules, and the illustrative numbers in them hold for every tax year
+                            currently included.</li>
+                        <li><strong>Allowance taper.</strong> The personal allowance is reduced by &pound;1 for every &pound;2 of
+                            income above &pound;100,000, reaching nil at &pound;125,140. That withdrawal is what produces the
+                            marginal spike to 60% (rest of UK) and 67.5% (Scotland) across that &pound;25,140 stretch.</li>
+                        <li><strong>Employee National Insurance</strong> is Class 1, category A: 8% between the primary
+                            threshold (&pound;12,570) and the upper earnings limit (&pound;50,270), then 2% above. Rates and
+                            thresholds are the same across the whole UK &mdash; Scotland does not set NI. Real NI is charged
+                            per pay period, not annually; this chart annualises it, which matches an employee on level
+                            pay through the year.</li>
+                        <li><strong>Scotland</strong> uses the Scottish rates and bands for non-savings, non-dividend
+                            income: starter 19%, basic 20%, intermediate 21%, higher 42%, advanced 45%, top 48%. The
+                            Scottish higher-rate threshold (&pound;43,662) sits below the NI upper earnings limit (&pound;50,270),
+                            so between those two points a Scottish employee pays 42% + 8% = <strong>50%</strong> at the
+                            margin &mdash; the highest combined rate below &pound;100,000 anywhere in the UK.</li>
+                        <li><strong>High income child benefit charge (HICBC).</strong> The charge claws back 1% of
+                            the year's child benefit for every &pound;200 of income above the threshold, so it is fully
+                            withdrawn once income is &pound;20,000 past it. Spread across that span it adds
+                            (annual benefit &divide; 20,000) to the marginal rate. It applies UK-wide, Scotland
+                            included. The weekly rates and thresholds for the selected year are listed above.</li>
+                        <li><strong>HICBC assumptions.</strong> The charge falls on whichever partner has the higher
+                            adjusted net income, and this chart assumes that is the person shown, with adjusted net
+                            income equal to the gross income on the x-axis. Strictly the clawback moves in 1% steps per
+                            &pound;200 rather than as a smooth ramp, so the real line is a fine sawtooth; it is drawn as a
+                            level band, which is how the charge is normally modelled. Opting out of payments avoids the
+                            charge and so removes this effect entirely.</li>
+                        <li><strong>Employer NI and the two bases.</strong> Employer (secondary Class 1) NI for
+                            has no upper limit &mdash; the rate applies to everything above the secondary threshold.
+                            It is paid by the employer on top of gross pay rather than deducted from it,
+                            so adding it to a rate measured against gross pay would mix two different denominators.
+                            On the <em>employee</em> basis it is therefore excluded entirely. On the <em>total
+                            employment cost</em> basis the denominator changes instead: an extra &pound;1 of salary
+                            costs the employer &pound;1.15, so every rate becomes
+                            (employee rate + 15) &divide; 1.15 &mdash; the measure usually called the tax wedge. The
+                            x-axis stays gross salary on both, so the familiar thresholds do not move.
+                            Employer NI is selectable as its own line, but only on the cost basis &mdash; on the
+                            employee basis it is absent from the combined line, and a component that did not add
+                            up to the total would mislead.</li>
+                        <li><strong>What the cost basis reveals.</strong> Because the secondary threshold
+                            (&pound;5,000) sits well below the personal allowance (&pound;12,570), there is a
+                            &pound;7,570 band in which the employee pays nothing at all yet the wedge is already
+                            <strong>13.0%</strong>. Scotland's peak rises from 69.5% to <strong>73.5%</strong>.</li>
+                        <li><strong>Employer NI caveats.</strong> The &pound;10,500 Employment Allowance is granted
+                            per employer, not per employee, so it cannot be shown on a per-person curve. Secondary NI
+                            is also 0% up to &pound;50,270 for employees under 21, apprentices under 25, and qualifying
+                            veterans in their first year &mdash; none of which is modelled. Whether employer NI is
+                            ultimately borne by the worker through lower wages is a claim about the long run, not
+                            about any individual payslip.</li>
+                        <li><strong>Student loans.</strong> Deductions are a flat percentage of earnings above the
+                            plan threshold, and an undergraduate plan stacks with a postgraduate loan, so someone with
+                            both pays the two rates combined once past both thresholds. Which plan applies depends on
+                            where and when you studied, not where you now pay income tax: Plan 4 is for Scottish loans
+                            and can apply to someone taxed in England, and vice versa. Thresholds and rates for the
+                            selected year are listed above, and the plans on offer change with the year.</li>
+                        <li><strong>Why there is no Plan 5.</strong> Plan 5 covers English courses starting on or
+                            after 1 August 2023, but no Plan 5 repayments were due before April 2026 &mdash; the first
+                            Plan 5 statutory repayment date fell in the 2026/27 year. It is therefore offered for
+                            2026/27 onwards and absent from 2025/26, which is why HMRC's 2025/26 employer tables
+                            omit it.</li>
+                        <li><strong>Student loans are not a tax.</strong> They are repayment of a debt that stops
+                            once the balance is cleared or written off, and the sums repaid are capped by what was
+                            borrowed. They are included in the combined line because at the margin they behave
+                            exactly like one &mdash; a fixed percentage of income above a threshold, collected through
+                            PAYE &mdash; but a high earner near the end of their balance may face none of it. Like NI,
+                            the deduction is calculated per pay period rather than annually.</li>
+                        <li><strong>The &pound;100,000 childcare cliff.</strong> Tax-Free Childcare is worth up to
+                            <strong>&pound;2,000 per child a year</strong> (children up to 11), and England's funded
+                            childcare is <strong>30 hours a week for 38 weeks</strong> (ages 9 months to 4). Both are
+                            withdrawn <em>in full</em> the moment either parent's adjusted net income exceeds
+                            &pound;100,000 &mdash; there is no taper. That makes it a step in net income rather than a
+                            rate, which is why no line carries it in the two rate views; it is marked there instead,
+                            and drawn as the vertical drop in the take-home view.</li>
+                        <li><strong>Scotland differs.</strong> Scotland funds 1,140 hours for all 3 and 4 year olds
+                            regardless of parental income or working status, so those hours are not lost at the cliff;
+                            only Tax-Free Childcare is, that being UK-wide. The funded-hours loss shown for the rest of
+                            the UK is modelled on <em>England's</em> scheme &mdash; Wales and Northern Ireland run
+                            different schemes that are not modelled here.</li>
+                        <li><strong>The funded hours have no fixed cash value.</strong> Tax-Free Childcare is an
+                            exact statutory &pound;2,000; the funded hours are worth whatever you would otherwise have
+                            paid, which varies widely by provider and area. That value is yours to set, and the
+                            break-even figures move with it, so treat them as an estimate rather than a quoted number.
+                            Break-even is solved numerically rather than assumed, because the marginal rate falls at
+                            &pound;125,140 partway through the recovery.</li>
+                        <li><strong>Also not modelled here:</strong> the income test applies per parent, so a
+                            household can lose everything on one parent's salary while the other earns little; the
+                            entitlement is reconfirmed quarterly; and a pension contribution that brings adjusted net
+                            income back under &pound;100,000 restores it in full, which is the standard mitigation.</li>
+                        <li><strong>Excluded:</strong>
+                            pension contributions and salary sacrifice, dividend and savings income (which use UK-wide
+                            rates even in Scotland), and benefits withdrawal such as Universal Credit or tax-free
+                            childcare cliff edges. Any of these can push the true marginal rate materially higher.</li>
+                        <li>Gross income is treated as employment income only, all taxable at the rates above.</li>
+                    </ul>
+                    <p class="selfcheck" id="selfcheck"></p>
+                </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">An illustration, not tax advice. Figures are generated from published
+        rates for the selected tax year and cover employment income only; they are not a
+        substitute for HMRC guidance or an accountant. Check the assumptions before relying on
+        anything here.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* ============================================================
+          TAX YEAR DATA
+          ------------------------------------------------------------
+          Everything that changes from one tax year to the next lives in
+          TAX_YEARS and nowhere else. To add a year: copy the most recent
+          entry, update the figures against the source noted beside each
+          block, add the id to YEAR_ORDER, and reload -- the self-checks at
+          the foot of this file will flag anything inconsistent.
+
+          Thresholds are GROSS income figures assuming the standard personal
+          allowance, because that is how both governments publish them.
+          Everything else -- the allowance taper, its 1.5x marginal spike,
+          band names -- is derived, so it stays correct automatically.
+          ============================================================ */
+
+    var TAX_YEARS = {
+        "2025-26": {
+            label: "2025/26",
+            // gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026
+            personalAllowance: 12570,
+            taperStart: 100000,          // allowance withdrawn \u00a31 per \u00a32 above this
+            incomeTax: {
+                ruk: [
+                    { to: 50270,    rate: 20, name: "Basic rate" },
+                    { to: 125140,   rate: 40, name: "Higher rate" },
+                    { to: Infinity, rate: 45, name: "Additional rate" }
+                ],
+                // gov.scot/publications/scottish-income-tax-rates-and-bands
+                sco: [
+                    { to: 15397,    rate: 19, name: "Starter rate" },
+                    { to: 27491,    rate: 20, name: "Basic rate" },
+                    { to: 43662,    rate: 21, name: "Intermediate rate" },
+                    { to: 75000,    rate: 42, name: "Higher rate" },
+                    { to: 125140,   rate: 45, name: "Advanced rate" },
+                    { to: Infinity, rate: 48, name: "Top rate" }
+                ]
+            },
+            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
+            employerNI: { secondaryThreshold: 5000, rate: 15 },
+            studentLoans: {
+                // No Plan 5: no Plan 5 repayments fell due before April 2026.
+                plans: [
+                    { id: "p1", label: "Plan 1", threshold: 26065, rate: 9 },
+                    { id: "p2", label: "Plan 2", threshold: 28470, rate: 9 },
+                    { id: "p4", label: "Plan 4", threshold: 32745, rate: 9 }
+                ],
+                postgraduate: { label: "postgraduate", threshold: 21000, rate: 6 }
+            },
+            childBenefit: { eldest: 26.05, other: 17.25, weeks: 52 },
+            hicbc: { start: 60000, end: 80000 },
+            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 }
+        },
+
+        "2026-27": {
+            label: "2026/27",
+            // gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027
+            personalAllowance: 12570,
+            taperStart: 100000,
+            incomeTax: {
+                // Unchanged from 2025/26 -- thresholds remain frozen.
+                ruk: [
+                    { to: 50270,    rate: 20, name: "Basic rate" },
+                    { to: 125140,   rate: 40, name: "Higher rate" },
+                    { to: Infinity, rate: 45, name: "Additional rate" }
+                ],
+                // gov.scot/publications/scottish-income-tax-rates-and-bands (2026 to 2027):
+                // starter, basic and intermediate thresholds up 7.4%, the rest frozen.
+                sco: [
+                    { to: 16537,    rate: 19, name: "Starter rate" },
+                    { to: 29526,    rate: 20, name: "Basic rate" },
+                    { to: 43662,    rate: 21, name: "Intermediate rate" },
+                    { to: 75000,    rate: 42, name: "Higher rate" },
+                    { to: 125140,   rate: 45, name: "Advanced rate" },
+                    { to: Infinity, rate: 48, name: "Top rate" }
+                ]
+            },
+            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
+            employerNI: { secondaryThreshold: 5000, rate: 15 },
+            studentLoans: {
+                plans: [
+                    { id: "p1", label: "Plan 1", threshold: 26900, rate: 9 },
+                    { id: "p2", label: "Plan 2", threshold: 29385, rate: 9 },
+                    { id: "p4", label: "Plan 4", threshold: 33795, rate: 9 },
+                    { id: "p5", label: "Plan 5", threshold: 25000, rate: 9 }
+                ],
+                postgraduate: { label: "postgraduate", threshold: 21000, rate: 6 }
+            },
+            // gov.uk/child-benefit-rates
+            childBenefit: { eldest: 27.05, other: 17.90, weeks: 52 },
+            hicbc: { start: 60000, end: 80000 },
+            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 }
+        }
+    };
+
+    var YEAR_ORDER = ["2026-27", "2025-26"];    // newest first
+    var DEFAULT_YEAR = YEAR_ORDER[0];
+
+    /* ============================================================
+          Deriving marginal bands from the year data
+          Bands are {upTo, rate, name}: `rate` applies while income < upTo.
+          ============================================================ */
+
+    function taperEndOf(y) { return y.taperStart + 2 * y.personalAllowance; }
+
+    /* Income tax as marginal rates on gross income. The published bands are
+          split at the allowance taper and rates inside it multiplied by 1.5,
+          because each extra pound there also strips 50p of allowance. */
+    function buildIncomeTaxBands(y, regionId) {
+        var pa = y.personalAllowance, ts = y.taperStart, te = taperEndOf(y);
+        var src = y.incomeTax[regionId];
+        var cuts = [];
+        src.forEach(function (b) { if (isFinite(b.to) && cuts.indexOf(b.to) < 0) cuts.push(b.to); });
+        [ts, te].forEach(function (c) { if (cuts.indexOf(c) < 0) cuts.push(c); });
+        cuts = cuts.filter(function (c) { return c > pa; });
+        cuts.sort(function (a, b) { return a - b; });
+        cuts.push(Infinity);
+
+        var out = [{ upTo: pa, rate: 0, name: "Personal allowance" }], prev = pa;
+        cuts.forEach(function (top) {
+            var sample = isFinite(top) ? (prev + top) / 2 : prev + 1000, band = src[src.length - 1];
+            for (var i = 0; i < src.length; i++) if (sample < src[i].to) { band = src[i]; break; }
+            var inTaper = sample > ts && sample < te;
+            out.push({
+                upTo: top,
+                rate: Math.round(band.rate * (inTaper ? 1.5 : 1) * 1000) / 1000,
+                name: band.name + (inTaper ? " + allowance taper" : "")
+            });
+            prev = top;
+        });
+        return out;
+    }
+
+    function buildEmployeeNIBands(y) {
+        var n = y.employeeNI;
+        return [
+            { upTo: n.primaryThreshold, rate: 0, name: "Below primary threshold", short: "" },
+            { upTo: n.upperEarningsLimit, rate: n.mainRate,
+                name: "Main rate (" + n.mainRate + "%)", short: "NI " + n.mainRate + "%" },
+            { upTo: Infinity, rate: n.upperRate,
+                name: "Above upper earnings limit (" + n.upperRate + "%)",
+                short: "NI " + n.upperRate + "%" }
+        ];
+    }
+
+    function buildEmployerNIBands(y) {
+        var e = y.employerNI;
+        return [
+            { upTo: e.secondaryThreshold, rate: 0, name: "Below the secondary threshold", short: "" },
+            { upTo: Infinity, rate: e.rate, name: "Secondary rate (" + e.rate + "%)",
+                short: "employer NI " + e.rate + "%" }
+        ];
+    }
+
+    /* ============================================================
+          The active year. Y, IT, NI and ERNI are rebuilt whenever it changes.
+          ============================================================ */
+
+    var Y, IT, NI, ERNI;
+
+    function loadYear(id) {
+        Y = TAX_YEARS[id];
+        IT = { ruk: buildIncomeTaxBands(Y, "ruk"), sco: buildIncomeTaxBands(Y, "sco") };
+        NI = buildEmployeeNIBands(Y);
+        ERNI = buildEmployerNIBands(Y);
+    }
+
+    function childBenefitAnnual(n) {
+        var cb = Y.childBenefit;
+        return n > 0 ? (cb.eldest + cb.other * (n - 1)) * cb.weeks : 0;
+    }
+
+    /* The charge claws back 1% of the year's child benefit per \u00a3200 of income
+          above the threshold, so it is fully withdrawn across that span. */
+    function hicbcBands(n) {
+        if (!n) return [{ upTo: Infinity, rate: 0, name: "No child benefit claimed", short: "" }];
+        var h = Y.hicbc;
+        var addl = childBenefitAnnual(n) / (h.end - h.start) * 100;
+        return [
+            { upTo: h.start, rate: 0, name: "Below the " + gbp(h.start) + " threshold", short: "" },
+            { upTo: h.end, rate: Math.round(addl * 1000) / 1000,
+                name: "Child benefit being clawed back", short: "child benefit charge" },
+            { upTo: Infinity, rate: 0, name: "Child benefit fully clawed back", short: "" }
+        ];
+    }
+
+    function planById(id) {
+        var plans = Y.studentLoans.plans;
+        for (var i = 0; i < plans.length; i++) if (plans[i].id === id) return plans[i];
+        return null;
+    }
+
+    function studentLoanBands(plan, pgl) {
+        var ug = planById(plan), pg = pgl ? Y.studentLoans.postgraduate : null;
+        if (!ug && !pg) {
+            return [{ upTo: Infinity, rate: 0, name: "No student loan", short: "" }];
+        }
+        var cuts = [], seen = {};
+        [ug, pg].forEach(function (x) {
+            if (x && !seen[x.threshold]) { seen[x.threshold] = 1; cuts.push(x.threshold); }
+        });
+        cuts.sort(function (a, b) { return a - b; });
+        cuts.push(Infinity);
+        var out = [], prev = 0;
+        cuts.forEach(function (upTo) {
+            var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+            var rate = 0, parts = [];
+            if (ug && sample >= ug.threshold) { rate += ug.rate; parts.push(ug.label); }
+            if (pg && sample >= pg.threshold) { rate += pg.rate; parts.push(pg.label); }
+            out.push({
+                upTo: upTo,
+                rate: rate,
+                name: parts.length ? parts.join(" + ") + " (" + rate + "%)"
+                                                      : "Below the repayment threshold",
+                short: parts.length ? "student loan " + rate + "%" : ""
+            });
+            prev = upTo;
+        });
+        return out;
+    }
+
+    function studentLoanLabel(plan, pgl) {
+        var ug = planById(plan);
+        if (ug && pgl) return ug.label + " + postgraduate";
+        if (ug) return ug.label;
+        if (pgl) return "Postgraduate";
+        return "";
+    }
+
+    function bandAt(bands, x) {
+        for (var i = 0; i < bands.length; i++) if (x < bands[i].upTo) return bands[i];
+        return bands[bands.length - 1];
+    }
+    function rateAt(bands, x) { return bandAt(bands, x).rate; }
+
+    /* Merge band lists, summing rates -- used to build the combined series.
+          The first list leads the band name; the rest contribute their short label
+          only where they are actually charging something. */
+    function combineBands(lists) {
+        var cuts = [], seen = {};
+        lists.forEach(function (list) {
+            list.forEach(function (bd) {
+                var k = String(bd.upTo);
+                if (!seen[k]) { seen[k] = 1; cuts.push(bd.upTo); }
+            });
+        });
+        cuts.sort(function (p, q) { return p - q; });
+        var out = [], prev = 0;
+        cuts.forEach(function (upTo) {
+            var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+            var hit = lists.map(function (l) { return bandAt(l, sample); });
+            var total = hit.reduce(function (t, b) { return t + b.rate; }, 0);
+            var extras = hit.slice(1).filter(function (b) { return b.rate > 0; })
+                                            .map(function (b) { return b.short; });
+            out.push({
+                upTo: upTo,
+                rate: Math.round(total * 1000) / 1000,
+                name: extras.length ? hit[0].name + " + " + extras.join(" + ") : hit[0].name
+            });
+            prev = upTo;
+        });
+        return out;
+    }
+
+    /* Re-express a band list as a share of total employment cost rather than of
+          gross pay. An extra pound of salary costs the employer \u00a31 plus employer NI,
+          so every rate is divided by that factor; on the combined line the employer's
+          own contribution joins the numerator as well. */
+    function toCostBasis(bands, withEmployerNI) {
+        var cuts = [], seen = {};
+        [bands, ERNI].forEach(function (list) {
+            list.forEach(function (bd) {
+                var k = String(bd.upTo);
+                if (!seen[k]) { seen[k] = 1; cuts.push(bd.upTo); }
+            });
+        });
+        cuts.sort(function (p, q) { return p - q; });
+        var out = [], prev = 0;
+        cuts.forEach(function (upTo) {
+            var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+            var b = bandAt(bands, sample), er = bandAt(ERNI, sample);
+            var numer = b.rate + (withEmployerNI ? er.rate : 0);
+            var name = b.name;
+            if (withEmployerNI && er.rate > 0) {
+                name = b.rate > 0 ? b.name + " + " + er.short : "Employer NI only";
+            }
+            out.push({
+                upTo: upTo,
+                rate: Math.round(numer / (1 + er.rate / 100) * 1000) / 1000,
+                name: name
+            });
+            prev = upTo;
+        });
+        return out;
+    }
+
+    /* The \u00a3100,000 childcare cliff. Tax-Free Childcare is worth \u00a32,000 per child
+          a year; England's funded hours are 30 a week for 38 weeks. Both are withdrawn
+          entirely -- not tapered -- once either parent's adjusted net income passes
+          \u00a3100,000, so this is a discontinuity in net income rather than a rate.
+          Scotland funds 1,140 hours for all 3 and 4 year olds regardless of parental
+          income, so only Tax-Free Childcare is at stake there. */
+    function hasChildcare() { return state.ccUnder5 + state.cc511 > 0; }
+
+    function childcareSupport(x, regionId) {
+        if (!hasChildcare() || x > Y.childcare.cliff) return 0;
+        var tfc = Y.childcare.tfcPerChild * (state.ccUnder5 + state.cc511);
+        var funded = regionId === "ruk"
+            ? Y.childcare.fundedHours * state.ccRate * state.ccUnder5 : 0;
+        return tfc + funded;
+    }
+
+    /* Cumulative tax in pounds up to income x. The band lists are marginal rates,
+          so the amount charged is their integral: each band's rate applied to the
+          slice of income falling inside it. */
+    function amountAt(bands, x) {
+        if (!(x > 0)) return 0;
+        var total = 0, prev = 0;
+        for (var i = 0; i < bands.length; i++) {
+            var top = Math.min(bands[i].upTo, x);
+            if (top > prev) total += (top - prev) * bands[i].rate / 100;
+            if (bands[i].upTo >= x) break;
+            prev = bands[i].upTo;
+        }
+        return total;
+    }
+
+    // What each rate is measured against: gross pay, or gross plus employer NI.
+    function denomAt(x) { return onCostBasis() ? x + amountAt(ERNI, x) : x; }
+
+    // Take-home plus whatever childcare support survives at that income.
+    function netPositionAt(x, netBands, regionId) {
+        return x - amountAt(netBands, x) + childcareSupport(x, regionId);
+    }
+
+    /* The salary at which someone is finally as well off as they were at
+          \u00a3100,000. Solved rather than assumed, because the marginal rate changes at
+          \u00a3125,140 partway through the recovery. */
+    function breakEvenAt(netBands, regionId) {
+        var target = netPositionAt(Y.childcare.cliff, netBands, regionId);
+        if (target <= netPositionAt(Y.childcare.cliff + 1, netBands, regionId)) return null;
+        var lo = Y.childcare.cliff, hi = Y.childcare.cliff * 20;
+        if (netPositionAt(hi, netBands, regionId) < target) return null;
+        for (var i = 0; i < 60; i++) {
+            var mid = (lo + hi) / 2;
+            if (netPositionAt(mid, netBands, regionId) >= target) hi = mid; else lo = mid;
+        }
+        return hi;
+    }
+
+    var REGIONS = [
+        { id: "ruk", label: "England, Wales & NI", dash: null },
+        { id: "sco", label: "Scotland",            dash: "7 4" }
+    ];
+    var MEASURES = [
+        { id: "it",    label: "Income tax",            cssVar: "--series-1" },
+        { id: "ni",    label: "National Insurance",    cssVar: "--series-2" },
+        { id: "hicbc", label: "Child benefit charge",  cssVar: "--series-4" },
+        { id: "erni",  label: "Employer NI",             cssVar: "--series-5" },
+        { id: "sl",    label: "Student loan",            cssVar: "--series-6" },
+        { id: "comb",  label: "Combined",              cssVar: "--series-3" }
+    ];
+
+    /* ============================================================
+          State
+          ============================================================ */
+
+    loadYear(DEFAULT_YEAR);
+
+    var state = {
+        year: DEFAULT_YEAR,
+        regions: { ruk: true, sco: true },
+        measures: { it: false, ni: false, hicbc: false, erni: false, sl: false, comb: true },
+        slPlan: "none",
+        slPgl: false,
+        children: 0,
+        ccUnder5: 0,
+        cc511: 0,
+        ccRate: 8,
+        basis: "employee",
+        view: "marginal",
+        xMax: 200000
+    };
+
+    function onCostBasis() { return state.basis === "cost"; }
+    function isMoneyView() { return state.view === "takehome"; }
+
+    /* A series' value at an income, in whichever view is active.
+          - marginal  : the rate on the next pound (a step function)
+          - effective : tax charged so far as a share of the denominator
+          - takehome  : pounds -- the aggregate keeps what is left, components take */
+    function valueAt(s, x) {
+        if (state.view === "marginal") return rateAt(s.bands, x);
+        if (state.view === "takehome") {
+            if (!s.agg) return amountAt(s.raw, x);
+            return netPositionAt(x, s.netRaw, s.regionId);
+        }
+        var d = denomAt(x);
+        return d > 0 ? amountAt(s.raw, x) / d * 100 : 0;
+    }
+
+    function activeSeries() {
+        var out = [];
+        var anyRegion = state.regions.ruk || state.regions.sco;
+        var hicbc = hicbcBands(state.children);
+        var sl = studentLoanBands(state.slPlan, state.slPgl);
+        var hasSL = state.slPlan !== "none" || state.slPgl;
+        // On the cost basis every line is restated as a share of employment cost;
+        // only the combined line also collects the employer's own contribution.
+        function shape(bands, isCombined) {
+            return onCostBasis() ? toCostBasis(bands, isCombined) : bands;
+        }
+
+        if (state.measures.it) {
+            REGIONS.forEach(function (r) {
+                if (state.regions[r.id]) {
+                    out.push({ id: "it-" + r.id, name: "Income tax", qual: r.label,
+                                          cssVar: "--series-1", dash: r.dash,
+                                          bands: shape(IT[r.id], false), raw: IT[r.id] });
+                }
+            });
+        }
+        // NI and the child benefit charge are both set UK-wide, so one line each
+        // serves both regions.
+        if (state.measures.ni && anyRegion) {
+            out.push({ id: "ni", name: "National Insurance", qual: "UK-wide",
+                                  cssVar: "--series-2", dash: null, bands: shape(NI, false), raw: NI });
+        }
+        if (state.measures.hicbc && state.children > 0 && anyRegion) {
+            out.push({ id: "hicbc", name: "Child benefit charge",
+                                  qual: state.children + (state.children === 1 ? " child" : " children"),
+                                  cssVar: "--series-4", dash: null, bands: shape(hicbc, false), raw: hicbc });
+        }
+        if (state.measures.sl && hasSL && anyRegion) {
+            out.push({ id: "sl", name: "Student loan",
+                                  qual: studentLoanLabel(state.slPlan, state.slPgl),
+                                  cssVar: "--series-6", dash: null, bands: shape(sl, false), raw: sl });
+        }
+        // Employer NI is only a coherent series on the cost basis: on the employee
+        // basis it is absent from the combined line, so showing it would break the
+        // rule that the component lines add up to the combined one.
+        if (state.measures.erni && onCostBasis() && anyRegion) {
+            out.push({ id: "erni", name: "Employer NI", qual: "UK-wide",
+                                  cssVar: "--series-5", dash: null, bands: shape(ERNI, false), raw: ERNI });
+        }
+        if (state.measures.comb) {
+            REGIONS.forEach(function (r) {
+                if (state.regions[r.id]) {
+                    // What actually leaves the employee's pay, and -- on the cost basis --
+                    // the wider total that also counts the employer's contribution.
+                    var employeeDed = combineBands([IT[r.id], NI, hicbc, sl]);
+                    var numerator = onCostBasis()
+                        ? combineBands([IT[r.id], NI, hicbc, sl, ERNI]) : employeeDed;
+                    out.push({ id: "comb-" + r.id, regionId: r.id,
+                                          name: !isMoneyView() ? "Combined"
+                                                  : (hasChildcare() ? "Net position" : "Take-home pay"), qual: r.label,
+                                          cssVar: "--series-3", dash: r.dash, agg: true,
+                                          bands: shape(employeeDed, true),
+                                          raw: numerator, netRaw: employeeDed });
+                }
+            });
+        }
+        return out;
+    }
+
+    /* ============================================================
+          Geometry
+          ============================================================ */
+
+    var VB_W = 920, VB_H = 470;
+    var M = { t: 18, r: 26, b: 46, l: 60 };
+    var PLOT_R = VB_W - M.r;
+    var Y0 = VB_H - M.b - 10;          // pixel row of 0%, lifted clear of the frame edge
+    var PLOT_W = PLOT_R - M.l;
+
+    var yMax = 75;
+    function xS(v) { return M.l + (v / state.xMax) * PLOT_W; }
+    function xInv(px) { return ((px - M.l) / PLOT_W) * state.xMax; }
+    function yS(r) { return Y0 - (r / yMax) * (Y0 - M.t); }
+
+    function niceMoneyStep(max) {
+        var c = [1000, 2000, 5000, 10000, 20000, 25000, 50000, 100000, 200000];
+        for (var i = 0; i < c.length; i++) if (max / c[i] <= 8) return c[i];
+        return c[c.length - 1];
+    }
+
+    function computeYMax(series) {
+        if (!series.length) return isMoneyView() ? 10000 : 10;
+        var mx = 0;
+        series.forEach(function (s) {
+            curvePoints(s).forEach(function (pt) { if (pt[1] > mx) mx = pt[1]; });
+        });
+        if (isMoneyView()) {
+            if (!(mx > 0)) return 10000;
+            var st = niceMoneyStep(mx);
+            return Math.ceil(mx / st) * st;
+        }
+        if (!mx) return 10;
+        return Math.ceil(mx / 5) * 5 + 5;
+    }
+
+    function yTickValues() {
+        var out = [], st = isMoneyView() ? niceMoneyStep(yMax) : (yMax <= 20 ? 5 : 10);
+        for (var v = 0; v <= yMax + 0.0001; v += st) out.push(v);
+        return out;
+    }
+    function yTickLabel(v) { return isMoneyView() ? gbpShort(v) : v + "%"; }
+    function fmtValue(v) { return isMoneyView() ? gbp(v) : pct(v); }
+
+    var AXIS_TITLE = {
+        marginal:  function () { return onCostBasis() ? "Marginal tax wedge" : "Marginal rate"; },
+        effective: function () { return onCostBasis() ? "Effective tax wedge" : "Effective rate"; },
+        takehome:  function () { return "Take-home pay"; }
+    };
+
+    /* ============================================================
+          Formatting
+          ============================================================ */
+
+    function gbp(v) { return "\u00a3" + Math.round(v).toLocaleString("en-GB"); }
+    function gbpPence(v) {
+        return "\u00a3" + v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function gbpShort(v) {
+        if (v === 0) return "\u00a30";
+        if (v % 1000 === 0) return "\u00a3" + (v / 1000) + "k";
+        return "\u00a3" + Math.round(v / 1000) + "k";
+    }
+    function pct(r) { return (Math.round(r * 10) / 10) + "%"; }
+
+    /* ============================================================
+          SVG helpers
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+
+    // Step path: horizontal runs joined by vertical jumps at each threshold.
+    function stepPoints(bands, xMax) {
+        var pts = [], r = rateAt(bands, 0);
+        pts.push([0, r]);
+        for (var i = 0; i < bands.length; i++) {
+            var cut = bands[i].upTo;
+            if (!isFinite(cut) || cut >= xMax) break;
+            if (cut <= 0) continue;
+            var nr = rateAt(bands, cut + 0.5);
+            if (nr !== r) { pts.push([cut, r]); pts.push([cut, nr]); r = nr; }
+        }
+        pts.push([xMax, r]);
+        return pts;
+    }
+    /* Marginal rates are a step function; the other two views are continuous, so
+          they are sampled -- take-home is piecewise linear and needs only the
+          thresholds, while the effective rate curves between them. */
+    function curvePoints(s) {
+        if (state.view === "marginal") return stepPoints(s.bands, state.xMax);
+        var xs = [], seen = {};
+        function add(v) {
+            v = Math.max(0, Math.min(state.xMax, v));
+            if (!seen[v]) { seen[v] = 1; xs.push(v); }
+        }
+        add(0); add(state.xMax);
+        if (s.agg && isMoneyView() && hasChildcare()) { add(Y.childcare.cliff); add(Y.childcare.cliff + 0.5); }
+        [s.raw, s.netRaw, onCostBasis() ? ERNI : null].forEach(function (list) {
+            if (list) list.forEach(function (b) { if (isFinite(b.upTo)) add(b.upTo); });
+        });
+        if (state.view === "effective") {
+            for (var i = 0; i <= 240; i++) add(Math.round(state.xMax * i / 240));
+        }
+        xs.sort(function (a, b) { return a - b; });
+        return xs.map(function (x) { return [x, valueAt(s, x)]; });
+    }
+
+    function pathD(pts) {
+        return pts.map(function (p, i) {
+            return (i ? "L" : "M") + xS(p[0]).toFixed(2) + " " + yS(p[1]).toFixed(2);
+        }).join(" ");
+    }
+
+    function xTickStep(max) {
+        var candidates = [5000, 10000, 20000, 25000, 50000, 100000];
+        for (var i = 0; i < candidates.length; i++) {
+            if (max / candidates[i] <= 9) return candidates[i];
+        }
+        return candidates[candidates.length - 1];
+    }
+
+    /* ============================================================
+          Render -- chart
+          ============================================================ */
+
+    var svg = document.getElementById("chart");
+    var tip = document.getElementById("tip");
+    var emptyMsg = document.getElementById("empty");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var tableEl = document.getElementById("table");
+    var plotWrap = svg.parentNode;
+
+    var current = [];      // active series for this render
+    var hoverX = null;     // income under the crosshair
+
+    function render() {
+        current = activeSeries();
+        yMax = computeYMax(current);
+
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        emptyMsg.hidden = current.length > 0;
+
+        var gGrid = el("g"), gData = el("g"), gAxis = el("g"), gHover = el("g", { id: "hover" });
+
+        /* --- washes marking the two withdrawal zones (drawn under everything) --- */
+        function wash(from, to, label) {
+            if (state.xMax <= from) return;
+            var x1 = xS(from), x2 = xS(Math.min(to, state.xMax));
+            gGrid.appendChild(el("rect", {
+                x: x1.toFixed(2), y: M.t, width: (x2 - x1).toFixed(2), height: (Y0 - M.t).toFixed(2),
+                class: "band-wash"
+            }));
+            if (x2 - x1 > 50) {
+                gGrid.appendChild(el("text", { x: ((x1 + x2) / 2).toFixed(2), y: M.t + 13,
+                    class: "band-note", "text-anchor": "middle" }, label));
+            }
+        }
+
+        /* In the money view the dead zone after the cliff is the region worth
+              marking, and it would sit almost exactly on top of the taper wash, so the
+              two are never drawn together. */
+        var deadZones = isMoneyView() && hasChildcare()
+            ? current.filter(function (s) { return s.agg; })
+                              .map(function (s) { return breakEvenAt(s.netRaw, s.regionId); })
+                              .filter(function (b) { return b; })
+            : [];
+
+        if (deadZones.length) {
+            deadZones.forEach(function (b) { wash(Y.childcare.cliff, b, ""); });
+            var widest = Math.min(Math.max.apply(null, deadZones), state.xMax);
+            if (xS(widest) - xS(Y.childcare.cliff) > 50) {
+                gGrid.appendChild(el("text", {
+                    x: ((xS(Y.childcare.cliff) + xS(widest)) / 2).toFixed(2), y: M.t + 13,
+                    class: "band-note", "text-anchor": "middle"
+                }, "worse off than at " + gbp(Y.childcare.cliff)));
+            }
+        } else if (current.some(function (s) {
+            return s.id !== "ni" && s.id !== "hicbc" && s.id !== "erni" && s.id !== "sl";
+        })) {
+            // The allowance taper touches every series except the UK-wide flat ones.
+            wash(Y.taperStart, taperEndOf(Y), "allowance tapered away");
+        }
+
+        /* The cliff itself is a discontinuity, not a rate, so in the rate views it
+              can only be marked -- no line can carry it. */
+        if (hasChildcare() && current.length && state.xMax > Y.childcare.cliff) {
+            var cx = xS(Y.childcare.cliff);
+            // start below the wash label row so the rule never strikes through it
+            gGrid.appendChild(el("line", { x1: cx.toFixed(2), y1: M.t + 20, x2: cx.toFixed(2),
+                                                                          y2: Y0, class: "cliff-rule" }));
+            gGrid.appendChild(el("text", { x: (cx - 6).toFixed(2), y: Y0 - 6,
+                class: "cliff-note", "text-anchor": "end" }, "childcare cliff"));
+        }
+        if (state.children > 0 && current.some(function (s) {
+            return s.id === "hicbc" || s.id.indexOf("comb-") === 0;
+        })) {
+            wash(Y.hicbc.start, Y.hicbc.end, "child benefit clawed back");
+        }
+
+        /* --- y gridlines + labels --- */
+        yTickValues().forEach(function (r) {
+            var yy = yS(r);
+            if (r > 0) gGrid.appendChild(el("line", { x1: M.l, y1: yy.toFixed(2), x2: PLOT_R, y2: yy.toFixed(2), class: "grid-line" }));
+            gAxis.appendChild(el("text", { x: M.l - 10, y: (yy + 4).toFixed(2), class: "tick-text", "text-anchor": "end" },
+                yTickLabel(r)));
+        });
+
+        /* --- x axis + ticks --- */
+        gAxis.appendChild(el("line", { x1: M.l, y1: Y0, x2: PLOT_R, y2: Y0, class: "axis-line" }));
+        var step = xTickStep(state.xMax);
+        for (var v = 0; v <= state.xMax + 1; v += step) {
+            var xx = xS(v);
+            gAxis.appendChild(el("line", { x1: xx.toFixed(2), y1: Y0, x2: xx.toFixed(2), y2: Y0 + 5, class: "axis-line" }));
+            gAxis.appendChild(el("text", { x: xx.toFixed(2), y: Y0 + 20, class: "tick-text", "text-anchor": "middle" }, gbpShort(v)));
+        }
+        gAxis.appendChild(el("text", { x: ((M.l + PLOT_R) / 2).toFixed(2), y: VB_H - 6, class: "axis-title", "text-anchor": "middle" },
+            "Gross annual employment income"));
+        gAxis.appendChild(el("text", { x: 14, y: ((M.t + Y0) / 2).toFixed(2), class: "axis-title", "text-anchor": "middle",
+            transform: "rotate(-90 14 " + ((M.t + Y0) / 2).toFixed(2) + ")" },
+            AXIS_TITLE[state.view]()));
+
+        /* --- series --- */
+        current.forEach(function (s) {
+            var p = el("path", { d: pathD(curvePoints(s)), class: "series-line" });
+            p.style.stroke = "var(" + s.cssVar + ")";
+            if (s.dash) p.setAttribute("stroke-dasharray", s.dash);
+            gData.appendChild(p);
+        });
+
+        svg.appendChild(gGrid);
+        svg.appendChild(gAxis);
+        svg.appendChild(gData);
+        svg.appendChild(gHover);
+
+        syncCombinedLabel();
+        document.getElementById("year-heading").textContent = Y.label;
+        renderFigures();
+        renderLegend();
+        renderCaption();
+        renderStats();
+        renderTable();
+        if (hoverX !== null) drawHover(hoverX); else clearHover();
+    }
+
+    /* ============================================================
+          Render -- legend (always present for 2+ series)
+          ============================================================ */
+
+    function keySvg(cssVar, dash, w) {
+        w = w || 22;
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", w); s.setAttribute("height", 8); s.setAttribute("viewBox", "0 0 " + w + " 8");
+        var l = el("line", { x1: 0, y1: 4, x2: w, y2: 4, "stroke-width": 2, "stroke-linecap": "round" });
+        l.style.stroke = "var(" + cssVar + ")";
+        if (dash) l.setAttribute("stroke-dasharray", dash);
+        s.appendChild(l);
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        if (current.length < 2) { legendEl.style.display = "none"; return; }
+        legendEl.style.display = "";
+        current.forEach(function (s) {
+            var item = div("lg-item");
+            item.appendChild(keySvg(s.cssVar, s.dash));
+            item.appendChild(document.createTextNode(s.name + " \u00b7 " + s.qual));
+            legendEl.appendChild(item);
+        });
+    }
+
+    function renderCaption() {
+        if (!current.length) { captionEl.textContent = ""; return; }
+        var parts = [];
+        // With one series there is no legend, so the caption has to name the line.
+        if (current.length === 1) {
+            parts.push("Showing " + current[0].name + " \u00b7 " + current[0].qual + ".");
+        } else if (current.some(function (s) { return s.dash; })) {
+            parts.push("Dashed lines are Scotland; solid lines are the rest of the UK.");
+        }
+        var UK_WIDE_PHRASE = { ni: "National Insurance", hicbc: "the child benefit charge",
+                                                      erni: "employer NI" };
+        var ukWide = current.filter(function (s) { return UK_WIDE_PHRASE[s.id]; })
+                                                .map(function (s) { return UK_WIDE_PHRASE[s.id]; });
+        if (ukWide.length) {
+            parts.push(ukWide.join(" and ") + (ukWide.length > 1 ? " are" : " is")
+                + " set UK-wide, so " + (ukWide.length > 1 ? "one line each covers" : "one line covers")
+                + " both regions.");
+        }
+        if (state.slPlan !== "none" || state.slPgl) {
+            parts.push("Which student loan plan applies depends on where and when you studied, "
+                + "not on where you pay income tax.");
+        }
+        if (state.children > 0) {
+            parts.push("Child benefit of " + gbpPence(childBenefitAnnual(state.children))
+                + " a year is clawed back between \u00a360,000 and \u00a380,000.");
+        }
+        if (isMoneyView()) {
+            parts.push(hasChildcare()
+                ? "The aggregate line is take-home pay plus childcare support, so the drop at "
+                    + gbp(Y.childcare.cliff) + " is the support withdrawn in full; the shaded span is where a "
+                    + "higher salary still leaves you worse off."
+                : "Take-home pay is gross pay less income tax, National Insurance and any "
+                    + "student loan or child benefit charge; the other lines are the amounts taken.");
+            if (hasChildcare()) {
+                parts.push("The cliff is a step in net income, not a rate, so in this view it is only "
+                    + "marked.");
+            }
+        } else if (state.view === "effective") {
+            parts.push("Effective rate is the tax charged up to that income divided by the income "
+                + "itself, so it always sits below the marginal rate.");
+        }
+        if (onCostBasis()) {
+            parts.push("Rates are shares of total employment cost: an extra \u00a31 of salary costs "
+                + "the employer \u00a31.15 once employer NI is added, and that 15% is counted as tax.");
+        }
+        captionEl.textContent = parts.join(" ");
+    }
+
+    /* ============================================================
+          Render -- the cliff in numbers
+          ============================================================ */
+
+    var statsEl = document.getElementById("stats");
+
+    /* Every figure here is read straight out of the year data, so it can never
+          drift from what the chart is actually computing. */
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+
+        var h = document.createElement("h4");
+        h.textContent = "Figures for " + Y.label;
+        host.appendChild(h);
+
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        function bandList(regionId) {
+            var prev = Y.personalAllowance;
+            return Y.incomeTax[regionId].map(function (b) {
+                var range = isFinite(b.to) ? gbp(prev) + " \u2013 " + gbp(b.to) : "over " + gbp(prev);
+                prev = b.to;
+                return b.name + " " + b.rate + "% (" + range + ")";
+            }).join("; ");
+        }
+
+        row("Personal allowance", gbp(Y.personalAllowance)
+            + ", withdrawn \u00a31 per \u00a32 above " + gbp(Y.taperStart)
+            + ", nil at " + gbp(taperEndOf(Y)));
+        row("Income tax, rest of UK", bandList("ruk"));
+        row("Income tax, Scotland", bandList("sco"));
+        row("Employee NI", Y.employeeNI.mainRate + "% from " + gbp(Y.employeeNI.primaryThreshold)
+            + " to " + gbp(Y.employeeNI.upperEarningsLimit)
+            + ", then " + Y.employeeNI.upperRate + "%");
+        row("Employer NI", Y.employerNI.rate + "% above "
+            + gbp(Y.employerNI.secondaryThreshold) + ", no upper limit");
+        row("Student loans", Y.studentLoans.plans.map(function (pl) {
+                return pl.label + " " + gbp(pl.threshold) + " at " + pl.rate + "%";
+            }).join("; ") + "; postgraduate " + gbp(Y.studentLoans.postgraduate.threshold)
+            + " at " + Y.studentLoans.postgraduate.rate + "%");
+        row("Child benefit", gbpPence(Y.childBenefit.eldest) + " a week for the eldest child, "
+            + gbpPence(Y.childBenefit.other) + " for each other, over "
+            + Y.childBenefit.weeks + " weeks");
+        row("Child benefit charge", "from " + gbp(Y.hicbc.start) + ", fully withdrawn at "
+            + gbp(Y.hicbc.end));
+        row("Childcare cliff", "all support lost above " + gbp(Y.childcare.cliff)
+            + "; Tax-Free Childcare " + gbp(Y.childcare.tfcPerChild) + " per child; "
+            + Y.childcare.fundedHours.toLocaleString("en-GB") + " funded hours a year");
+        host.appendChild(dl);
+    }
+
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        if (!hasChildcare()) return;
+
+        var hicbc = hicbcBands(state.children);
+        var sl = studentLoanBands(state.slPlan, state.slPgl);
+
+        REGIONS.forEach(function (r) {
+            if (!state.regions[r.id]) return;
+            var lost = childcareSupport(Y.childcare.cliff, r.id);
+            if (!(lost > 0)) return;
+            var netBands = combineBands([IT[r.id], NI, hicbc, sl]);
+            var be = breakEvenAt(netBands, r.id);
+
+            var g = document.createElement("div");
+            g.className = "stat-group";
+            var h = document.createElement("h3");
+            h.textContent = r.label;
+            g.appendChild(h);
+
+            var row = div("stat-row");
+            [["Support lost at " + gbp(Y.childcare.cliff + 1), gbp(lost)],
+              ["Level again at", be ? gbp(be) : "beyond range"],
+              ["Extra salary needed", be ? gbp(be - Y.childcare.cliff) : "--"]
+            ].forEach(function (pair) {
+                var cell = document.createElement("div");
+                var lab = document.createElement("span");
+                lab.className = "stat-label";
+                lab.textContent = pair[0];
+                var val = div("stat-value", pair[1]);
+                cell.appendChild(lab); cell.appendChild(val);
+                row.appendChild(cell);
+            });
+            g.appendChild(row);
+
+            var note = div("stat-note",
+                r.id === "ruk" && state.ccUnder5 > 0
+                    ? "Tax-Free Childcare plus 1,140 funded hours for each child under 5, valued at "
+                        + "\u00a3" + state.ccRate + " an hour. Funded hours modelled on England's scheme."
+                : r.id === "ruk"
+                    ? "Tax-Free Childcare only: funded hours apply only to children under 5."
+                    : "Tax-Free Childcare only: Scotland funds 1,140 hours for all 3 and 4 year olds "
+                        + "regardless of income, so those are not lost at the cliff.");
+            g.appendChild(note);
+            statsEl.appendChild(g);
+        });
+    }
+
+    /* ============================================================
+          Render -- table view (the no-hover, no-color route to every value)
+          ============================================================ */
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        if (!current.length) return;
+
+        var marginal = state.view === "marginal";
+        var cap = document.createElement("caption");
+        cap.textContent = marginal
+            ? (onCostBasis()
+                    ? "Marginal tax wedge in each band, as a share of total employment cost, " + Y.label + ". "
+                    : "Marginal rate in each band, as a share of gross pay, " + Y.label + ". ")
+                + "Bands are gross salary and cover the full income scale, including any beyond the "
+                + "chart's current range."
+            : (isMoneyView()
+                    ? "Take-home pay and the amounts deducted at selected gross salaries, " + Y.label + ". "
+                    : (onCostBasis()
+                            ? "Effective tax wedge at selected gross salaries, as a share of employment cost, " + Y.label + ". "
+                            : "Effective rate at selected gross salaries, as a share of gross pay, " + Y.label + ". "))
+                + "Rows follow the chart's current income range.";
+        tableEl.appendChild(cap);
+
+        // Union of every threshold across the shown series.
+        var cuts = [], seen = {};
+        current.forEach(function (s) {
+            s.bands.forEach(function (b) {
+                var k = String(b.upTo);
+                if (!seen[k]) { seen[k] = 1; cuts.push(b.upTo); }
+            });
+        });
+        cuts.sort(function (p, q) { return p - q; });
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        var th0 = document.createElement("th"); th0.scope = "col";
+        th0.textContent = marginal ? "Gross income band" : "Gross salary";
+        hr.appendChild(th0);
+        current.forEach(function (s) {
+            var th = document.createElement("th"); th.scope = "col";
+            var k = document.createElement("span");
+            k.className = "th-key";
+            k.style.background = "var(" + s.cssVar + ")";
+            th.appendChild(k);
+            th.appendChild(document.createTextNode(s.name));
+            var q = document.createElement("span");
+            q.className = "th-qual";
+            q.textContent = s.qual;
+            th.appendChild(q);
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr); tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        function addRow(label, valueFor) {
+            var tr = document.createElement("tr");
+            var td0 = document.createElement("td");
+            td0.textContent = label;
+            tr.appendChild(td0);
+            current.forEach(function (s) {
+                var td = document.createElement("td");
+                td.textContent = valueFor(s);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+
+        if (marginal) {
+            var prev = 0;
+            cuts.forEach(function (upTo) {
+                var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+                addRow(isFinite(upTo) ? gbp(prev) + " \u2013 " + gbp(upTo) : "Over " + gbp(prev),
+                              function (s) { return pct(rateAt(s.bands, sample)); });
+                prev = upTo;
+            });
+        } else {
+            // A continuous curve has no single value per band, so sample the income
+            // scale instead -- on the same grid the x-axis is ticked on.
+            var st = xTickStep(state.xMax);
+            for (var v = st; v <= state.xMax + 1; v += st) {
+                (function (income) {
+                    addRow(gbp(income), function (s) { return fmtValue(valueAt(s, income)); });
+                })(v);
+            }
+        }
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Hover layer -- crosshair finds the X, one tooltip lists every series
+          ============================================================ */
+
+    function clearHover() {
+        var g = svg.querySelector("#hover");
+        if (g) while (g.firstChild) g.removeChild(g.firstChild);
+        tip.classList.remove("on");
+    }
+
+    function drawHover(income) {
+        var g = svg.querySelector("#hover");
+        if (!g || !current.length) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+
+        var px = xS(income);
+        g.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2), y2: Y0, class: "crosshair" }));
+
+        current.forEach(function (s) {
+            var c = el("circle", { cx: px.toFixed(2), cy: yS(valueAt(s, income)).toFixed(2), r: 4.5, class: "hover-dot" });
+            c.style.fill = "var(" + s.cssVar + ")";
+            g.appendChild(c);
+        });
+
+        // ---- tooltip content ----
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(div("tip-head", gbp(income)));
+        current.forEach(function (s) {
+            // Name the band from the underlying gross-pay rules, whichever view is on.
+            var nameBands = state.view === "marginal" ? s.bands
+                                        : (s.agg && isMoneyView() ? s.netRaw : s.raw);
+            var b = bandAt(nameBands, income);
+            var row = div("tip-row");
+            var key = div("tip-key");
+            key.style.background = "var(" + s.cssVar + ")";
+            if (s.dash) key.style.background =
+                "repeating-linear-gradient(90deg, var(" + s.cssVar + ") 0 5px, transparent 5px 8px)";
+            row.appendChild(key);
+            row.appendChild(div("tip-name", s.name + " \u00b7 " + s.qual));
+            row.appendChild(div("tip-val", fmtValue(valueAt(s, income))));
+            tip.appendChild(row);
+            tip.appendChild(div("tip-band", b.name));
+        });
+
+        // ---- position, flipping near the right edge ----
+        var rect = svg.getBoundingClientRect();
+        var scale = rect.width / VB_W;
+        var left = px * scale + 16;
+        tip.classList.add("on");
+        var tw = tip.offsetWidth;
+        if (left + tw > rect.width - 4) left = px * scale - tw - 16;
+        if (left < 4) left = 4;
+        tip.style.left = left + "px";
+        var top = Math.max(4, Math.min(rect.height - tip.offsetHeight - 4, rect.height * 0.16));
+        tip.style.top = top + "px";
+    }
+
+    function incomeFromEvent(e) {
+        var rect = svg.getBoundingClientRect();
+        var px = ((e.clientX - rect.left) / rect.width) * VB_W;
+        if (px < M.l - 2 || px > PLOT_R + 2) return null;
+        var v = xInv(px);
+        v = Math.round(v / 100) * 100;                      // finer than one pixel at every range
+        return Math.max(0, Math.min(state.xMax, v));
+    }
+
+    svg.addEventListener("pointermove", function (e) {
+        if (!current.length) return;
+        var v = incomeFromEvent(e);
+        if (v === null) { hoverX = null; clearHover(); return; }
+        hoverX = v; drawHover(v);
+    });
+    svg.addEventListener("pointerleave", function () { hoverX = null; clearHover(); });
+
+    // Keyboard: same readout as hover.
+    svg.addEventListener("keydown", function (e) {
+        if (!current.length) return;
+        var stepK = e.shiftKey ? state.xMax / 20 : state.xMax / 100;
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            var base = hoverX === null ? state.xMax / 2 : hoverX;
+            var next = base + (e.key === "ArrowRight" ? stepK : -stepK);
+            hoverX = Math.max(0, Math.min(state.xMax, Math.round(next / 100) * 100));
+            drawHover(hoverX);
+            e.preventDefault();
+        } else if (e.key === "Escape") {
+            hoverX = null; clearHover();
+        }
+    });
+    svg.addEventListener("blur", function () { hoverX = null; clearHover(); });
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    function makeChip(label, checked, tickColor, onToggle) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", checked ? "true" : "false");
+        if (tickColor) b.style.setProperty("--tick-col", tickColor);
+        var t = document.createElement("span"); t.className = "tick"; t.setAttribute("aria-hidden", "true");
+        b.appendChild(t);
+        b.__labelNode = document.createTextNode(label);
+        b.appendChild(b.__labelNode);
+        b.addEventListener("click", function () {
+            var next = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", next ? "true" : "false");
+            onToggle(next);
+            render();
+        });
+        return b;
+    }
+
+    var regionChips = document.getElementById("region-chips");
+    REGIONS.forEach(function (r) {
+        regionChips.appendChild(makeChip(r.label, state.regions[r.id], null, function (on) {
+            state.regions[r.id] = on;
+        }));
+    });
+
+    var measureChips = document.getElementById("measure-chips");
+    var chipById = {};
+    MEASURES.forEach(function (m) {
+        var chip = makeChip(m.label, state.measures[m.id], "var(" + m.cssVar + ")", function (on) {
+            state.measures[m.id] = on;
+        });
+        chipById[m.id] = chip;
+        measureChips.appendChild(chip);
+    });
+
+    // The charge only exists once child benefit is being claimed for someone.
+    function syncHicbcChip() {
+        var chip = chipById.hicbc, off = state.children === 0;
+        chip.disabled = off;
+        chip.title = off ? "Choose a number of children to plot this charge" : "";
+        if (off && state.measures.hicbc) {
+            state.measures.hicbc = false;
+            chip.setAttribute("aria-checked", "false");
+        }
+    }
+
+    // Employer NI only makes sense against the employment-cost denominator.
+    function syncErniChip() {
+        var chip = chipById.erni, off = !onCostBasis();
+        chip.disabled = off;
+        chip.title = off ? "Switch the basis to total employment cost to plot employer NI" : "";
+        if (off && state.measures.erni) {
+            state.measures.erni = false;
+            chip.setAttribute("aria-checked", "false");
+        }
+    }
+
+    // Nothing to plot until a repayment plan is chosen.
+    function syncSlChip() {
+        var chip = chipById.sl, off = state.slPlan === "none" && !state.slPgl;
+        chip.disabled = off;
+        chip.title = off ? "Choose a repayment plan to plot student loan deductions" : "";
+        if (off && state.measures.sl) {
+            state.measures.sl = false;
+            chip.setAttribute("aria-checked", "false");
+        }
+    }
+
+    document.getElementById("sl-sel").addEventListener("change", function (e) {
+        var v = e.target.value, head = v.split("+")[0];
+        state.slPlan = (head === "none" || head === "pgl") ? "none" : head;
+        state.slPgl = v.indexOf("pgl") >= 0;
+        // Picking a plan is a request to see its effect.
+        if ((state.slPlan !== "none" || state.slPgl)
+                && !state.measures.sl && !state.measures.comb) {
+            state.measures.sl = true;
+            chipById.sl.setAttribute("aria-checked", "true");
+        }
+        syncSlChip();
+        render();
+    });
+
+    document.getElementById("kids-sel").addEventListener("change", function (e) {
+        state.children = Number(e.target.value);
+        // Turning the charge on is the point of picking a number of children.
+        if (state.children > 0 && !state.measures.hicbc && !state.measures.comb) {
+            state.measures.hicbc = true;
+            chipById.hicbc.setAttribute("aria-checked", "true");
+        }
+        syncHicbcChip();
+        render();
+    });
+
+    // In the take-home view the aggregate line is what is left, not what is taken.
+    function syncCombinedLabel() {
+        chipById.comb.__labelNode.nodeValue = !isMoneyView() ? "Combined"
+            : (hasChildcare() ? "Net position" : "Take-home pay");
+    }
+
+    document.getElementById("year-sel").addEventListener("change", function (e) {
+        state.year = e.target.value;
+        loadYear(state.year);
+        buildStudentLoanOptions();
+        syncSlChip();
+        hoverX = null;
+        render();
+    });
+
+    document.getElementById("view-sel").addEventListener("change", function (e) {
+        state.view = e.target.value;
+        syncCombinedLabel();
+        hoverX = null;
+        render();
+    });
+
+    document.getElementById("basis-sel").addEventListener("change", function (e) {
+        state.basis = e.target.value;
+        // Switching to the cost basis is the point at which employer NI becomes
+        // available, so surface it unless the combined line already covers it.
+        if (onCostBasis() && !state.measures.erni && !state.measures.comb) {
+            state.measures.erni = true;
+            chipById.erni.setAttribute("aria-checked", "true");
+        }
+        syncErniChip();
+        render();
+    });
+
+    /* The plan list is year data: Plan 5 exists in 2026/27 but not before, so
+          the options are rebuilt whenever the year changes and a plan that no
+          longer exists falls back to None. */
+    function buildStudentLoanOptions() {
+        var sel = document.getElementById("sl-sel");
+        var wanted = state.slPlan + (state.slPgl ? "+pgl" : "");
+        if (state.slPlan === "none" && state.slPgl) wanted = "pgl";
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+
+        function opt(value, text) {
+            var o = document.createElement("option");
+            o.value = value;
+            o.textContent = text;
+            sel.appendChild(o);
+            return value;
+        }
+        var available = [opt("none", "None")];
+        var plans = Y.studentLoans.plans;
+        plans.forEach(function (pl) {
+            available.push(opt(pl.id, pl.label + (pl.id === "p4" ? " (Scottish loan)" : "")));
+        });
+        available.push(opt("pgl", "Postgraduate only"));
+        plans.forEach(function (pl) {
+            available.push(opt(pl.id + "+pgl", pl.label + " + postgraduate"));
+        });
+
+        if (available.indexOf(wanted) < 0) { wanted = "none"; state.slPlan = "none"; state.slPgl = false; }
+        sel.value = wanted;
+    }
+
+    function buildYearOptions() {
+        var sel = document.getElementById("year-sel");
+        YEAR_ORDER.forEach(function (id) {
+            var o = document.createElement("option");
+            o.value = id;
+            o.textContent = TAX_YEARS[id].label;
+            if (id === state.year) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    function syncCcRate() {
+        var sel = document.getElementById("cc-rate");
+        sel.disabled = state.ccUnder5 === 0;
+        sel.title = sel.disabled ? "Only applies to children under 5" : "";
+    }
+
+    [["cc-u5", "ccUnder5"], ["cc-511", "cc511"], ["cc-rate", "ccRate"]].forEach(function (pair) {
+        document.getElementById(pair[0]).addEventListener("change", function (e) {
+            state[pair[1]] = Number(e.target.value);
+            syncCcRate();
+            hoverX = null;
+            render();
+        });
+    });
+
+    document.getElementById("range-sel").addEventListener("change", function (e) {
+        state.xMax = Number(e.target.value);
+        hoverX = null;
+        render();
+    });
+
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          These run on every load and report into the assumptions panel.
+          They exist so that updating TAX_YEARS for a new tax year is safe:
+          if a figure is mistyped or a band structure changes shape, the
+          invariants below break loudly rather than producing a plausible
+          but wrong chart. Add a pinned value for each new year.
+          ============================================================ */
+
+    var PINNED = {
+        "2025-26": {
+            incomeTax: [["ruk", 20000, 1486], ["ruk", 120000, 39432],
+                                    ["sco", 60000, 13213.80], ["sco", 125140, 47733.30]],
+            employeeNI: [[60000, 3210.60], [20000, 594.40]],
+            takeHome: [["ruk", 60000, 45357.40], ["sco", 60000, 43575.60],
+                                  ["ruk", 100000, 68557.40], ["sco", 100000, 65225.60]],
+            marginal: [["ruk", 110000, 60], ["sco", 110000, 67.5], ["sco", 45000, 42]],
+            studentLoan: [["p2", 40000, 1037.70]],
+            childBenefit: [[1, 1354.60], [2, 2251.60]]
+        },
+        "2026-27": {
+            incomeTax: [["ruk", 60000, 11432], ["sco", 60000, 13182.05]],
+            employeeNI: [[60000, 3210.60]],
+            takeHome: [["ruk", 60000, 45357.40], ["sco", 60000, 43607.35]],
+            marginal: [["ruk", 110000, 60], ["sco", 110000, 67.5]],
+            studentLoan: [["p2", 40000, 955.35], ["p5", 40000, 1350]],
+            childBenefit: [[1, 1406.60], [2, 2337.40]]
+        }
+    };
+
+    /* The UK tax year starts on 6 April. */
+    function currentTaxYearId(d) {
+        d = d || new Date();
+        var m = d.getMonth(), start = (m > 3 || (m === 3 && d.getDate() >= 6))
+            ? d.getFullYear() : d.getFullYear() - 1;
+        return start + "-" + ("0" + ((start + 1) % 100)).slice(-2);
+    }
+
+    function runSelfChecks() {
+        var results = [], failures = [];
+
+        function check(name, ok, detail) {
+            results.push(ok);
+            if (!ok) failures.push(name + (detail ? " -- " + detail : ""));
+        }
+        function near(a, b, tol) { return Math.abs(a - b) <= (tol === undefined ? 0.01 : tol); }
+
+        // remember what the user had selected
+        var savedYear = state.year, savedPlan = state.slPlan, savedPgl = state.slPgl;
+
+        Object.keys(TAX_YEARS).forEach(function (yid) {
+            loadYear(yid);
+            var y = TAX_YEARS[yid], tag = yid + ": ";
+
+            /* -- structure ------------------------------------------------- */
+            var lists = { "income tax ruk": IT.ruk, "income tax sco": IT.sco,
+                                        "employee NI": NI, "employer NI": ERNI };
+            Object.keys(lists).forEach(function (k) {
+                var b = lists[k], sorted = true, sane = true;
+                for (var i = 0; i < b.length; i++) {
+                    if (i && !(b[i].upTo > b[i - 1].upTo)) sorted = false;
+                    if (!(b[i].rate >= 0) || !isFinite(b[i].rate)) sane = false;
+                }
+                check(tag + k + " bands ascending", sorted);
+                check(tag + k + " rates sane", sane);
+                check(tag + k + " open-ended", b[b.length - 1].upTo === Infinity);
+            });
+
+            check(tag + "taper end derived", taperEndOf(y) === y.taperStart + 2 * y.personalAllowance);
+            check(tag + "allowance band first",
+                        IT.ruk[0].rate === 0 && IT.ruk[0].upTo === y.personalAllowance);
+
+            /* -- the taper spike is 1.5x the underlying statutory rate ------ */
+            ["ruk", "sco"].forEach(function (rg) {
+                var mid = (y.taperStart + taperEndOf(y)) / 2;
+                var statutory = null, src = y.incomeTax[rg];
+                for (var i = 0; i < src.length; i++) if (mid < src[i].to) { statutory = src[i].rate; break; }
+                check(tag + rg + " taper spike is 1.5x band rate",
+                            near(rateAt(IT[rg], mid), statutory * 1.5, 0.001),
+                            rateAt(IT[rg], mid) + " vs " + (statutory * 1.5));
+            });
+
+            /* -- independent cross-check ------------------------------------
+                  At the top of the taper the allowance is exactly nil, so tax
+                  computed from the gross marginal bands must equal the statutory
+                  bands applied to taxable income. Two different routes, one
+                  answer. Skipped (and reported) if a band top ever lands inside
+                  the taper, where the gross-to-taxable mapping is not a shift. */
+            ["ruk", "sco"].forEach(function (rg) {
+                var te = taperEndOf(y), pa = y.personalAllowance, src = y.incomeTax[rg];
+                var inside = src.some(function (b) {
+                    return isFinite(b.to) && b.to > y.taperStart && b.to < te;
+                });
+                if (inside) {
+                    check(tag + rg + " taxable-space cross-check", false,
+                                "a band top now falls inside the taper -- revisit this check");
+                    return;
+                }
+                var tax = 0, prevTop = 0;
+                src.forEach(function (b) {
+                    var top = !isFinite(b.to) ? Infinity : (b.to >= te ? b.to : b.to - pa);
+                    var slice = Math.min(te, top) - prevTop;
+                    if (slice > 0) tax += slice * b.rate / 100;
+                    prevTop = Math.max(prevTop, Math.min(te, top));
+                });
+                check(tag + rg + " taxable-space cross-check at taper end",
+                            near(amountAt(IT[rg], te), tax, 0.01),
+                            amountAt(IT[rg], te).toFixed(2) + " vs " + tax.toFixed(2));
+            });
+
+            /* -- components sum to the combined line ------------------------ */
+            [0, 15000, 45000, 62000, 78000, 110000, 130000, 250000].forEach(function (x) {
+                ["ruk", "sco"].forEach(function (rg) {
+                    var hb = hicbcBands(2), sb = studentLoanBands(y.studentLoans.plans[0].id, true);
+                    var parts = amountAt(IT[rg], x) + amountAt(NI, x) + amountAt(hb, x) + amountAt(sb, x);
+                    var comb = amountAt(combineBands([IT[rg], NI, hb, sb]), x);
+                    check(tag + rg + " components sum at " + x, near(parts, comb, 0.01),
+                                parts.toFixed(2) + " vs " + comb.toFixed(2));
+                    check(tag + rg + " take-home identity at " + x,
+                                near((x - comb) + comb, x, 0.01));
+                });
+            });
+
+            /* -- employer NI restates rates without changing the money ------ */
+            [30000, 60000, 130000].forEach(function (x) {
+                var costRate = rateAt(toCostBasis(IT.ruk, false), x);
+                var er = rateAt(ERNI, x);
+                check(tag + "cost basis divides by 1 + employer NI at " + x,
+                            near(costRate, rateAt(IT.ruk, x) / (1 + er / 100), 0.001));
+            });
+
+            /* -- take-home rises with pay (no cliff configured) ------------- */
+            var prevTH = -1, mono = true;
+            for (var g = 0; g <= 200000; g += 2500) {
+                var th = g - amountAt(combineBands([IT.ruk, NI]), g);
+                if (th < prevTH - 0.005) mono = false;
+                prevTH = th;
+            }
+            check(tag + "take-home is monotonic", mono);
+
+            /* -- HICBC withdraws exactly the year's child benefit ----------- */
+            [1, 3].forEach(function (n) {
+                var hb = hicbcBands(n);
+                check(tag + "HICBC claws back the full benefit for " + n,
+                            near(amountAt(hb, y.hicbc.end), childBenefitAnnual(n), 0.01),
+                            amountAt(hb, y.hicbc.end).toFixed(2) + " vs " + childBenefitAnnual(n).toFixed(2));
+            });
+
+            /* -- pinned, hand-verified figures ------------------------------ */
+            var pin = PINNED[yid];
+            if (!pin) {
+                check(tag + "has pinned values", false, "add hand-checked figures for this year");
+            } else {
+                (pin.incomeTax || []).forEach(function (t) {
+                    check(tag + "income tax " + t[0] + " at " + t[1],
+                                near(amountAt(IT[t[0]], t[1]), t[2], 0.01),
+                                amountAt(IT[t[0]], t[1]).toFixed(2) + " vs " + t[2]);
+                });
+                (pin.employeeNI || []).forEach(function (t) {
+                    check(tag + "employee NI at " + t[0], near(amountAt(NI, t[0]), t[1], 0.01),
+                                amountAt(NI, t[0]).toFixed(2) + " vs " + t[1]);
+                });
+                (pin.takeHome || []).forEach(function (t) {
+                    var th = t[1] - amountAt(combineBands([IT[t[0]], NI]), t[1]);
+                    check(tag + "take-home " + t[0] + " at " + t[1], near(th, t[2], 0.01),
+                                th.toFixed(2) + " vs " + t[2]);
+                });
+                (pin.marginal || []).forEach(function (t) {
+                    check(tag + "marginal " + t[0] + " at " + t[1], near(rateAt(IT[t[0]], t[1]), t[2], 0.001),
+                                rateAt(IT[t[0]], t[1]) + " vs " + t[2]);
+                });
+                (pin.studentLoan || []).forEach(function (t) {
+                    var sb = studentLoanBands(t[0], false);
+                    check(tag + "student loan " + t[0] + " at " + t[1], near(amountAt(sb, t[1]), t[2], 0.01),
+                                amountAt(sb, t[1]).toFixed(2) + " vs " + t[2]);
+                });
+                (pin.childBenefit || []).forEach(function (t) {
+                    check(tag + "child benefit for " + t[0], near(childBenefitAnnual(t[0]), t[1], 0.01),
+                                childBenefitAnnual(t[0]).toFixed(2) + " vs " + t[1]);
+                });
+            }
+
+            /* -- the break-even solver actually finds the level point ------- */
+            state.ccUnder5 = 1; state.cc511 = 0;
+            ["ruk", "sco"].forEach(function (rg) {
+                var netBands = combineBands([IT[rg], NI]);
+                var be = breakEvenAt(netBands, rg);
+                if (be === null) { check(tag + rg + " break-even found", false); return; }
+                var atCliff = netPositionAt(y.childcare.cliff, netBands, rg);
+                check(tag + rg + " break-even levels out", near(netPositionAt(be, netBands, rg), atCliff, 1),
+                            netPositionAt(be, netBands, rg).toFixed(2) + " vs " + atCliff.toFixed(2));
+                check(tag + rg + " just below break-even is worse",
+                            netPositionAt(be - 50, netBands, rg) < atCliff);
+            });
+            state.ccUnder5 = 0;
+        });
+
+        // put the user's selections back exactly as they were
+        state.slPlan = savedPlan; state.slPgl = savedPgl;
+        loadYear(savedYear);
+
+        /* Maintenance prompt: if the calendar has moved into a tax year that is
+              not in TAX_YEARS, say so rather than quietly showing stale figures. */
+        var missing = !TAX_YEARS[currentTaxYearId()] ? currentTaxYearId() : null;
+
+        var passed = results.filter(Boolean).length;
+        var out = document.getElementById("selfcheck");
+        if (failures.length) {
+            out.className = "selfcheck bad";
+            out.textContent = "\u2716 " + failures.length + " of " + results.length
+                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
+                + (failures.length > 6 ? "; ..." : "");
+            if (window.console) console.error("Tax self-checks failed:", failures);
+        } else {
+            out.className = "selfcheck ok";
+            out.textContent = "\u2713 " + passed + " self-checks passed for "
+                + Object.keys(TAX_YEARS).length + " tax years.";
+        }
+        if (missing) {
+            var warn = document.createElement("p");
+            warn.className = "selfcheck bad";
+            warn.textContent = "\u26a0 The " + missing.replace("-", "/")
+                + " tax year has begun but is not in TAX_YEARS \u2014 add it.";
+            out.parentNode.insertBefore(warn, out.nextSibling);
+        }
+        window.__taxSelfChecks = { passed: passed, total: results.length, failures: failures };
+    }
+
+    buildYearOptions();
+    buildStudentLoanOptions();
+    syncHicbcChip();
+    syncErniChip();
+    syncSlChip();
+    syncCombinedLabel();
+    syncCcRate();
+    render();
+    runSelfChecks();
+    window.addEventListener("resize", function () { if (hoverX !== null) drawHover(hoverX); });
+})();
+</script>
+</body>
+</html>

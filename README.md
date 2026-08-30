@@ -11,6 +11,7 @@ that grows over time.
 
 | Tool | What it does |
 |---|---|
+| [UK Tax & Take-Home Pay](https://www.hashbrowneng.com/tools/uk-tax-rates/) | Marginal rates, effective rates and take-home pay for UK employees, 2025/26 and 2026/27, England/Wales/NI against Scotland. |
 | [Unit Converter](https://www.hashbrowneng.com/tools/unit-converter/) | Pressure, temperature, flow, length, mass, volume, density, viscosity, energy and power conversions. |
 
 ## How it is built
