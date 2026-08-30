@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UK Tax on Savings, Dividends &amp; Gains &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="Marginal and effective tax rates on savings interest, dividends and capital gains in 2025/26 and 2026/27, and how they stack on top of your other income.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* savings interest */
+                --series-2:       #eb6834;  /* dividends */
+                --series-3:       #1baf7a;  /* capital gains */
+                --series-4:       #eda100;  /* gains with BADR */
+                --series-6:       #4a3aa7;  /* employment income */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                    --series-4:     #c98500;
+                    --series-6:     #9085e9;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            /* Wraps rather than running off the side of a narrow screen. */
+            .ctl-pair { display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end; }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .band-wash { fill: var(--text-muted); opacity: 0.075; }
+            .band-note { fill: var(--text-muted); font-size: 10.5px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .cliff-rule { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; }
+            .cliff-note { fill: var(--text-secondary); font-size: 10.5px; font-weight: 600; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 210px; max-width: 290px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- cliff stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            .cc-group { display: flex; gap: 10px; align-items: center; }
+            .sub-ctl { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-muted); }
+            .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+            .viz-root .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            /* The shared sheet makes every <label> an uppercase block; the paired
+                  childcare selects need theirs inline and in sentence case. */
+            .viz-root label.sub-ctl {
+                display: flex;
+                text-transform: none;
+                letter-spacing: normal;
+                font-weight: 400;
+                font-size: 11.5px;
+                color: var(--ink-faint);
+                margin-block-end: 0;
+            }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style>
+</head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Tax on savings, dividends &amp; gains &mdash; <span id="year-heading">2026/27</span></h1>
+        <p class="lede">Interest, dividends and capital gains are each taxed as a slice sitting on
+            top of your other income, so what the next pound costs depends on what is underneath it.
+            This plots that, for 2025/26 and 2026/27, against what the same pound of salary would
+            have cost.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                    <div>
+                        <span class="ctl-label" id="lbl-series">Series</span>
+                        <div class="chips" role="group" aria-labelledby="lbl-series" id="series-chips"></div>
+                    </div>
+                    <div>
+                        <span class="ctl-label" id="lbl-region">Region</span>
+                        <div class="chips" role="group" aria-labelledby="lbl-region" id="region-chips"></div>
+                    </div>
+                    <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="year-sel">Tax year</label>
+                        <select id="year-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">View</label>
+                        <select id="view-sel">
+                            <option value="marginal" selected>Marginal rate</option>
+                            <option value="effective">Effective rate</option>
+                            <option value="tax">Tax due</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="axis-sel">Horizontal axis</label>
+                        <select id="axis-sel">
+                            <option value="other" selected>Other income</option>
+                            <option value="amount">Size of the interest, dividend or gain</option>
+                        </select>
+                    </div>
+                    <div id="amount-wrap">
+                        <label class="ctl-label" for="amount-sel">Interest, dividend or gain</label>
+                        <select id="amount-sel">
+                            <option value="1000">&pound;1,000</option>
+                            <option value="3000">&pound;3,000</option>
+                            <option value="5000">&pound;5,000</option>
+                            <option value="10000" selected>&pound;10,000</option>
+                            <option value="25000">&pound;25,000</option>
+                            <option value="50000">&pound;50,000</option>
+                            <option value="100000">&pound;100,000</option>
+                        </select>
+                    </div>
+                    <div id="other-wrap" hidden>
+                        <label class="ctl-label" for="other-sel">Other income</label>
+                        <select id="other-sel">
+                            <option value="0">None</option>
+                            <option value="12570">&pound;12,570</option>
+                            <option value="20000">&pound;20,000</option>
+                            <option value="30000">&pound;30,000</option>
+                            <option value="50000" selected>&pound;50,000</option>
+                            <option value="60000">&pound;60,000</option>
+                            <option value="100000">&pound;100,000</option>
+                            <option value="150000">&pound;150,000</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="range-sel">Axis range</label>
+                        <select id="range-sel">
+                            <option value="20000">&pound;0 &ndash; &pound;20k</option>
+                            <option value="60000">&pound;0 &ndash; &pound;60k</option>
+                            <option value="130000">&pound;0 &ndash; &pound;130k</option>
+                            <option value="200000" selected>&pound;0 &ndash; &pound;200k</option>
+                            <option value="500000">&pound;0 &ndash; &pound;500k</option>
+                        </select>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="plot-wrap">
+                        <svg class="chart" id="chart" viewBox="0 0 920 470" preserveAspectRatio="xMidYMid meet"
+                                  role="img" tabindex="0" aria-label="Marginal tax rate on investment income."></svg>
+                        <div class="tip" id="tip" role="status" aria-live="polite"></div>
+                        <div class="empty" id="empty" hidden>Select at least one series and one region to plot.</div>
+                    </div>
+                    <div class="legend" id="legend"></div>
+                </div>
+                <p class="caption" id="caption"></p>
+                <div class="stats" id="stats"></div>
+
+                <section class="block">
+                    <h2>Rate bands</h2>
+                    <div class="tbl-scroll">
+                        <table id="table"></table>
+                    </div>
+                </section>
+
+                <details class="notes">
+                    <summary>Assumptions &amp; sources</summary>
+                    <div class="figures" id="figures"></div>
+                    <ul>
+                        <li><strong>Each line assumes it is the only investment income you have.</strong>
+                            The savings line is drawn for someone whose interest sits on top of their other
+                            income and nothing else; the dividend line likewise. Real allowances interact &mdash;
+                            dividends push interest further up the band stack and can cost you the personal
+                            savings allowance &mdash; so holding several kinds at once is worse than reading two
+                            lines off this chart and adding them. The figures panel above is generated from the
+                            data for the selected tax year, so it is always in step with the chart.</li>
+                        <li><strong>The order of the stack.</strong> Income tax charges non-savings income
+                            first, then savings, then dividends, and capital gains are settled after all of it.
+                            That ordering is what this whole tool is about: the same &pound;1,000 of interest is
+                            free of tax for one person and taxed at 45% for another purely because of what sits
+                            underneath it.</li>
+                        <li><strong>Savings: two nil-rate bands, both conditional.</strong> The
+                            <em>starting rate for savings</em> is a &pound;5,000 band at 0%, but it is reduced
+                            pound for pound by non-savings income above the personal allowance, so it is gone
+                            entirely once other income reaches &pound;17,570. The <em>personal savings
+                            allowance</em> is then &pound;1,000 for a basic rate taxpayer, &pound;500 for a
+                            higher rate taxpayer and nothing at all for an additional rate taxpayer. Both are
+                            nil-rate bands rather than deductions: they use up basic and higher rate band space
+                            as they go.</li>
+                        <li><strong>The personal savings allowance is a genuine cliff edge.</strong> Because it
+                            halves the moment you become a higher rate taxpayer, one extra pound of interest can
+                            cost up to <strong>&pound;100.40</strong> in tax &mdash; the &pound;500 of allowance
+                            withdrawn, taxed at 20%, plus 40p on the pound itself. Losing the last &pound;500 on
+                            becoming an additional rate taxpayer is a second, smaller step. These are steps in the
+                            tax due, not rates, so no line can carry them: they are marked on the chart and
+                            drawn as vertical jumps in the tax view.</li>
+                        <li><strong>Dividends</strong> get a &pound;500 allowance, again a nil-rate band that
+                            uses up band space rather than a deduction, and it does not vary with your tax band.
+                            The rates then follow the band the dividend falls in. From 6 April 2026 the ordinary
+                            and upper rates each rose by two percentage points, to 10.75% and 35.75%; the
+                            additional rate was left at 39.35%.</li>
+                        <li><strong>Savings rates have not moved yet.</strong> Interest is still taxed at the
+                            ordinary 20/40/45 rates in both years shown. The two percentage point rise announced
+                            for savings and property income takes effect from 6 April 2027, which is outside both
+                            tax years here.</li>
+                        <li><strong>Capital gains</strong> are not income. They do not enter adjusted net income,
+                            so &mdash; unlike interest and dividends &mdash; a gain cannot taper away your personal
+                            allowance. They are still stacked on top of taxable income to find the rate: what is
+                            left of the basic rate band is charged at 18%, everything above at 24%. The
+                            &pound;3,000 annual exempt amount is deducted first and, unlike the nil-rate bands
+                            above, it does <em>not</em> consume basic rate band.</li>
+                        <li><strong>Business Asset Disposal Relief</strong> charges qualifying gains at a flat
+                            rate up to a &pound;1m lifetime limit, and this chart assumes none of that limit has
+                            been used. The rate rose from 10% to 14% on 6 April 2025 and from 14% to 18% on
+                            6 April 2026, so the two years shown sit either side of that second step. Investors'
+                            Relief carries the same rate and its own &pound;1m lifetime limit. Whether a disposal
+                            qualifies at all is a question about the asset and the holding period, not about
+                            income, and is not modelled.</li>
+                        <li><strong>Scotland sets none of these rates.</strong> The Scottish rates and bands
+                            apply only to non-savings, non-dividend income. Savings, dividends and capital gains
+                            are charged at UK rates using UK thresholds, and it is the <em>UK</em> basic rate
+                            limit that decides your personal savings allowance and how much of a gain is charged
+                            at 18%. So a Scottish taxpayer on &pound;45,000 pays 42% at the margin on salary
+                            while still counting as a basic rate taxpayer for a capital gain.</li>
+                        <li><strong>Where region does matter.</strong> Between &pound;100,000 and
+                            &pound;125,140 of income the personal allowance is withdrawn &pound;1 for every
+                            &pound;2, so an extra pound of interest or dividend also drags a further 50p of your
+                            other income into tax &mdash; at the Scottish rate if that is where you are taxed.
+                            An extra pound of dividend in that band costs 53.75% in the rest of the UK against
+                            <strong>56.25%</strong> in Scotland in 2025/26. Outside that stretch the savings and
+                            dividend lines for the two regions are identical, and the chart draws one line
+                            labelled UK-wide rather than two on top of each other.</li>
+                        <li><strong>The personal allowance is set against other income first</strong>, then
+                            savings, then dividends. It may in fact be allocated in whichever way is most
+                            beneficial, and for some mixes of income a different split saves a little tax; the
+                            conventional ordering is used here.</li>
+                        <li><strong>The employment comparison line</strong> is income tax plus employee Class 1
+                            National Insurance on the next pound of salary, on the same basis as the sibling
+                            take-home pay tool. It is there for scale, and it ignores whatever investment income
+                            the other lines assume &mdash; on the second horizontal axis it is a flat reference
+                            rather than a response to the gain.</li>
+                        <li><strong>Tax due, and the effective rate</strong>, are the extra tax the interest,
+                            dividend or gain actually causes: the whole tax bill with it, less the bill without
+                            it. That is why the dividend line can show more than the headline rate above
+                            &pound;100,000 &mdash; the allowance it strips away is part of the cost of having it.</li>
+                        <li><strong>Excluded:</strong> ISAs and other wrappers (the entire point of which is to
+                            sidestep all of the above), pension contributions, gift aid, the remittance basis,
+                            trusts and personal representatives, non-residents, losses brought forward, share
+                            pooling and identification rules, the high income child benefit charge, and the
+                            withdrawal of tax-free childcare at &pound;100,000. The sibling tool covers the last
+                            two against salary.</li>
+                        <li>Interest is assumed taxable and paid gross; dividends are assumed to be from UK
+                            companies with no foreign tax credit.</li>
+                    </ul>
+                    <p class="selfcheck" id="selfcheck"></p>
+                </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">An illustration, not tax advice. Figures are generated from published
+        rates for the selected tax year and cover a deliberately simplified set of circumstances;
+        they are not a substitute for HMRC guidance or an accountant. Check the assumptions before
+        relying on anything here.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* ============================================================
+          TAX YEAR DATA
+          ------------------------------------------------------------
+          Everything that changes from one tax year to the next lives in
+          TAX_YEARS and nowhere else. To add a year: copy the most recent
+          entry, update the figures against the source noted beside each
+          block, add the id to YEAR_ORDER, add pinned figures to PINNED at
+          the foot of this file, and reload -- the self-checks will flag
+          anything inconsistent.
+
+          Unlike the sibling take-home pay tool, the bands here are held in
+          TAXABLE income space -- income after the personal allowance -- because
+          that is the space savings, dividends and gains are actually stacked
+          in, and because the allowance taper makes the gross-income shortcut
+          break down exactly where this tool is most interesting. The familiar
+          gross figures (£50,270 and so on) are derived for display.
+          ============================================================ */
+
+    var TAX_YEARS = {
+        "2025-26": {
+            label: "2025/26",
+            // gov.uk/government/publications/rates-and-allowances-income-tax
+            personalAllowance: 12570,
+            taperStart: 100000,          // allowance withdrawn £1 per £2 above this
+            basicRateLimit: 37700,       // taxable income; £50,270 gross with a full allowance
+            higherRateLimit: 125140,     // taxable income at which the additional rate starts
+            nonSavings: {
+                ruk: [
+                    { upTo: 37700,    rate: 20, name: "Basic rate" },
+                    { upTo: 125140,   rate: 40, name: "Higher rate" },
+                    { upTo: Infinity, rate: 45, name: "Additional rate" }
+                ],
+                // gov.scot/publications/scottish-income-tax-rates-and-bands
+                sco: [
+                    { upTo: 2827,     rate: 19, name: "Starter rate" },
+                    { upTo: 14921,    rate: 20, name: "Basic rate" },
+                    { upTo: 31092,    rate: 21, name: "Intermediate rate" },
+                    { upTo: 62430,    rate: 42, name: "Higher rate" },
+                    { upTo: 125140,   rate: 45, name: "Advanced rate" },
+                    { upTo: Infinity, rate: 48, name: "Top rate" }
+                ]
+            },
+            // Savings rates are the ordinary rates; the announced two point rise
+            // does not begin until 6 April 2027.
+            savings: { startingRateBand: 5000, psaBasic: 1000, psaHigher: 500, rates: [20, 40, 45] },
+            dividends: { allowance: 500, rates: [8.75, 33.75, 39.35] },
+            // BADR rose from 10% to 14% on 6 April 2025.
+            cgt: { aea: 3000, lower: 18, upper: 24, badr: 14, badrLimit: 1000000 },
+            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 }
+        },
+
+        "2026-27": {
+            label: "2026/27",
+            personalAllowance: 12570,
+            taperStart: 100000,
+            basicRateLimit: 37700,       // thresholds remain frozen
+            higherRateLimit: 125140,
+            nonSavings: {
+                ruk: [
+                    { upTo: 37700,    rate: 20, name: "Basic rate" },
+                    { upTo: 125140,   rate: 40, name: "Higher rate" },
+                    { upTo: Infinity, rate: 45, name: "Additional rate" }
+                ],
+                // Scottish starter, basic and intermediate thresholds up 7.4%,
+                // the rest frozen.
+                sco: [
+                    { upTo: 3967,     rate: 19, name: "Starter rate" },
+                    { upTo: 16956,    rate: 20, name: "Basic rate" },
+                    { upTo: 31092,    rate: 21, name: "Intermediate rate" },
+                    { upTo: 62430,    rate: 42, name: "Higher rate" },
+                    { upTo: 125140,   rate: 45, name: "Advanced rate" },
+                    { upTo: Infinity, rate: 48, name: "Top rate" }
+                ]
+            },
+            savings: { startingRateBand: 5000, psaBasic: 1000, psaHigher: 500, rates: [20, 40, 45] },
+            // Ordinary and upper dividend rates up two points from 6 April 2026;
+            // the additional rate was left alone.
+            dividends: { allowance: 500, rates: [10.75, 35.75, 39.35] },
+            // BADR rose again, from 14% to 18%, on 6 April 2026.
+            cgt: { aea: 3000, lower: 18, upper: 24, badr: 18, badrLimit: 1000000 },
+            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 }
+        }
+    };
+
+    var YEAR_ORDER = ["2026-27", "2025-26"];    // newest first
+    var DEFAULT_YEAR = YEAR_ORDER[0];
+    var Y = TAX_YEARS[DEFAULT_YEAR];
+
+    function loadYear(id) { Y = TAX_YEARS[id]; }
+    function taperEndOf(y) { return y.taperStart + 2 * y.personalAllowance; }
+
+    /* ============================================================
+          THE ENGINE
+          ------------------------------------------------------------
+          One function computes a whole income tax position; everything the
+          chart shows is a difference between two calls to it. positionOf
+          works out where each slice of income sits and which nil-rate bands
+          reach it, and both the tax and the band names are read from that
+          same object, so a label can never disagree with the number beside it.
+          ============================================================ */
+
+    // Charge `amount` of income starting at `pos` in taxable-income space.
+    function sliceTax(pos, amount, bands) {
+        var tax = 0;
+        for (var i = 0; i < bands.length && amount > 1e-12; i++) {
+            if (pos >= bands[i].upTo) continue;
+            var take = Math.min(amount, bands[i].upTo - pos);
+            tax += take * bands[i].rate / 100;
+            pos += take;
+            amount -= take;
+        }
+        return tax;
+    }
+
+    function ukBands(y, rates) {
+        return [{ upTo: y.basicRateLimit,  rate: rates[0] },
+                { upTo: y.higherRateLimit, rate: rates[1] },
+                { upTo: Infinity,          rate: rates[2] }];
+    }
+
+    // The allowance is withdrawn £1 for every £2 of income above the taper start.
+    // Capital gains are not income, so they never appear in this figure.
+    function paFor(y, totalIncome) {
+        return Math.max(0, y.personalAllowance - Math.max(0, (totalIncome - y.taperStart) / 2));
+    }
+
+    // £1,000 for a basic rate taxpayer, £500 for a higher rate one, nothing
+    // for an additional rate one -- tested against the UK limits even in Scotland.
+    function psaFor(y, totalTaxable) {
+        if (totalTaxable <= y.basicRateLimit) return y.savings.psaBasic;
+        if (totalTaxable <= y.higherRateLimit) return y.savings.psaHigher;
+        return 0;
+    }
+
+    function positionOf(y, other, savings, dividends) {
+        other = Math.max(0, other);
+        savings = Math.max(0, savings);
+        dividends = Math.max(0, dividends);
+
+        var total = other + savings + dividends;
+        var pa = paFor(y, total);
+        // The allowance is set against other income first, then savings, then dividends.
+        var paOther = Math.min(pa, other), rem = pa - paOther;
+        var paSav = Math.min(rem, savings); rem -= paSav;
+        var paDiv = Math.min(rem, dividends);
+
+        var oT = other - paOther, sT = savings - paSav, dT = dividends - paDiv;
+        var totalT = oT + sT + dT;
+
+        // The starting rate band is the first £5,000 of taxable income, so
+        // non-savings income eats into it before any interest gets there.
+        var srsUsed = Math.max(0, Math.min(sT, y.savings.startingRateBand - oT));
+        var psa = psaFor(y, totalT);
+        var psaUsed = Math.max(0, Math.min(psa, sT - srsUsed));
+        var daUsed = Math.min(y.dividends.allowance, dT);
+
+        return { pa: pa, paOther: paOther, paSav: paSav, paDiv: paDiv,
+                 oT: oT, sT: sT, dT: dT, totalT: totalT,
+                 srsUsed: srsUsed, psa: psa, psaUsed: psaUsed, daUsed: daUsed };
+    }
+
+    /* Income tax on the whole position. The nil-rate bands are not deductions:
+          they sit at the bottom of their slice and use up band space, which is why
+          the taxed remainder starts above them rather than where the slice began. */
+    function taxFrom(y, region, P) {
+        return sliceTax(0, P.oT, y.nonSavings[region])
+             + sliceTax(P.oT + P.srsUsed + P.psaUsed, P.sT - P.srsUsed - P.psaUsed,
+                        ukBands(y, y.savings.rates))
+             + sliceTax(P.oT + P.sT + P.daUsed, P.dT - P.daUsed, ukBands(y, y.dividends.rates));
+    }
+
+    function incomeTax(y, region, other, savings, dividends) {
+        return taxFrom(y, region, positionOf(y, other, savings, dividends));
+    }
+
+    /* Capital gains are settled after income tax: the annual exempt amount comes
+          off first, then what is left of the basic rate band is charged at the lower
+          rate and everything above it at the higher one. The exempt amount, unlike
+          the nil-rate bands above, does not consume any band space. */
+    function cgtOn(y, region, other, gains, badr) {
+        var chargeable = Math.max(0, gains - y.cgt.aea);
+        if (chargeable <= 0) return 0;
+        var unused = Math.max(0, y.basicRateLimit - positionOf(y, other, 0, 0).totalT);
+        if (badr) {
+            var relieved = Math.min(chargeable, y.cgt.badrLimit);
+            var excess = chargeable - relieved;
+            // Relieved gains use up the basic rate band before any excess does.
+            var exLower = Math.min(excess, Math.max(0, unused - relieved));
+            return relieved * y.cgt.badr / 100
+                 + exLower * y.cgt.lower / 100
+                 + (excess - exLower) * y.cgt.upper / 100;
+        }
+        var atLower = Math.min(chargeable, unused);
+        return atLower * y.cgt.lower / 100 + (chargeable - atLower) * y.cgt.upper / 100;
+    }
+
+    function employeeNI(y, salary) {
+        var n = y.employeeNI;
+        return sliceTax(0, Math.max(0, salary), [
+            { upTo: n.primaryThreshold,   rate: 0 },
+            { upTo: n.upperEarningsLimit, rate: n.mainRate },
+            { upTo: Infinity,             rate: n.upperRate }
+        ]);
+    }
+
+    /* ============================================================
+          What each series measures
+          ------------------------------------------------------------
+          Every line answers the same question: what does this interest,
+          dividend or gain actually cost? That is the whole tax bill with it
+          less the whole bill without it, which is why the dividend line can
+          exceed its headline rate -- the allowance it stripped away is part
+          of the price of having had it.
+          ============================================================ */
+
+    var SERIES = [
+        { id: "sav",  label: "Savings interest",  cssVar: "--series-1", regional: true },
+        { id: "div",  label: "Dividends",         cssVar: "--series-2", regional: true },
+        { id: "cg",   label: "Capital gains",     cssVar: "--series-3", regional: false },
+        { id: "badr", label: "Gains with BADR",   cssVar: "--series-4", regional: false },
+        { id: "emp",  label: "Employment income", cssVar: "--series-6", regional: true }
+    ];
+    var SERIES_BY_ID = {};
+    SERIES.forEach(function (s) { SERIES_BY_ID[s.id] = s; });
+
+    var REGIONS = [
+        { id: "ruk", label: "England, Wales & NI", dash: null },
+        { id: "sco", label: "Scotland",            dash: "7 4" }
+    ];
+
+    function taxDueOn(sid, region, other, amount) {
+        if (sid === "emp") return incomeTax(Y, region, amount, 0, 0) + employeeNI(Y, amount);
+        if (sid === "cg")   return cgtOn(Y, region, other, amount, false);
+        if (sid === "badr") return cgtOn(Y, region, other, amount, true);
+        var base = incomeTax(Y, region, other, 0, 0);
+        return sid === "sav" ? incomeTax(Y, region, other, amount, 0) - base
+                             : incomeTax(Y, region, other, 0, amount) - base;
+    }
+
+    /* The rate on the next pound. Two things make this fiddlier than a difference
+          quotient. The window sits just to the RIGHT of the point rather than
+          straddling it, so that the bands come out right-continuous: the rate reported
+          at a threshold is the rate that applies from it, which is what a step function
+          should say. And an allowance cliff is a step in the tax due rather than a rate,
+          so a window that happened to span one would report it as a rate of several
+          thousand per cent; nothing here is legitimately above 100%, so a reading that
+          high means the window met a step, and it is retaken clear of it. */
+    function probeRate(sid, region, other, at) {
+        return (taxDueOn(sid, region, other, at + 0.001) - taxDueOn(sid, region, other, at)) * 100000;
+    }
+    function marginalOn(sid, region, other, amount) {
+        var base = Math.max(0, amount);
+        var m = probeRate(sid, region, other, base + 0.0002);
+        if (m > 100) m = probeRate(sid, region, other, base + 0.01);
+        return Math.round(m * 1e4) / 1e4;
+    }
+
+    /* The band the next pound falls in, read from the same position object the
+          tax was computed from. */
+    function describe(sid, region, other, amount) {
+        var tapering = sid !== "cg" && sid !== "badr" && sid !== "emp"
+            && (other + amount) > Y.taperStart && (other + amount) < taperEndOf(Y);
+        var suffix = tapering ? " + allowance taper" : "";
+
+        if (sid === "cg" || sid === "badr") {
+            if (amount <= Y.cgt.aea) return "Within the annual exempt amount";
+            var chargeable = amount - Y.cgt.aea;
+            if (sid === "badr") {
+                return chargeable <= Y.cgt.badrLimit
+                    ? "Business Asset Disposal Relief (" + Y.cgt.badr + "%)"
+                    : "Above the " + gbp(Y.cgt.badrLimit) + " lifetime limit";
+            }
+            var unused = Math.max(0, Y.basicRateLimit - positionOf(Y, other, 0, 0).totalT);
+            return chargeable <= unused
+                ? "Within the unused basic rate band (" + Y.cgt.lower + "%)"
+                : "Above the basic rate band (" + Y.cgt.upper + "%)";
+        }
+
+        if (sid === "emp") {
+            var Pe = positionOf(Y, amount, 0, 0);
+            if (amount <= Pe.pa) return "Covered by the personal allowance";
+            var bandE = bandAt(Y.nonSavings[region], Pe.oT);
+            var ni = amount <= Y.employeeNI.primaryThreshold ? ""
+                : (amount <= Y.employeeNI.upperEarningsLimit
+                        ? " + NI " + Y.employeeNI.mainRate + "%"
+                        : " + NI " + Y.employeeNI.upperRate + "%");
+            return bandE.name + ni
+                + (amount > Y.taperStart && amount < taperEndOf(Y) ? " + allowance taper" : "");
+        }
+
+        var P = sid === "sav" ? positionOf(Y, other, amount, 0) : positionOf(Y, other, 0, amount);
+        var paPart = sid === "sav" ? P.paSav : P.paDiv;
+        if (amount <= paPart) return "Covered by the personal allowance";
+        var offset = amount - paPart;
+
+        if (sid === "sav") {
+            if (offset <= P.srsUsed) return "Starting rate for savings (0%)" + suffix;
+            if (offset <= P.srsUsed + P.psaUsed) return "Personal savings allowance (0%)" + suffix;
+            var bandS = bandAt(ukBands(Y, Y.savings.rates), P.oT + offset);
+            return "Savings taxed at " + bandS.rate + "%" + suffix;
+        }
+        if (offset <= P.daUsed) return "Dividend allowance (0%)" + suffix;
+        var bandD = bandAt(ukBands(Y, Y.dividends.rates), P.oT + P.sT + offset);
+        var NAMES = ["Ordinary rate", "Upper rate", "Additional rate"];
+        var idx = Y.dividends.rates.indexOf(bandD.rate);
+        return (idx >= 0 ? NAMES[idx] : "Dividend") + " (" + bandD.rate + "%)" + suffix;
+    }
+
+    function bandAt(bands, x) {
+        for (var i = 0; i < bands.length; i++) if (x < bands[i].upTo) return bands[i];
+        return bands[bands.length - 1];
+    }
+    function rateAt(bands, x) { return bandAt(bands, x).rate; }
+
+    /* ============================================================
+          State
+          ============================================================ */
+
+    var state = {
+        year: DEFAULT_YEAR,
+        series: { sav: true, div: true, cg: true, badr: false, emp: true },
+        regions: { ruk: true, sco: true },
+        view: "marginal",
+        axis: "other",       // "other" = x is other income; "amount" = x is the interest/dividend/gain
+        amount: 10000,       // size of the interest, dividend or gain, when x is other income
+        other: 50000,        // other income, when x is the interest, dividend or gain
+        xMax: 200000
+    };
+
+    function isMoneyView() { return state.view === "tax"; }
+
+    /* Where a series sits for a given point on the x axis. Employment income is
+          its own base -- the salary is both the thing taxed and the income under it. */
+    function posFor(sid, x) {
+        var other = state.axis === "other" ? x : state.other;
+        var amount = sid === "emp" ? other
+                                   : (state.axis === "other" ? state.amount : x);
+        return { other: other, amount: amount };
+    }
+
+    function valueAtX(s, x) {
+        var p = posFor(s.sid, x);
+        if (state.view === "marginal") return marginalOn(s.sid, s.regionId, p.other, p.amount);
+        var due = taxDueOn(s.sid, s.regionId, p.other, p.amount);
+        if (isMoneyView()) return due;
+        return p.amount > 0 ? due / p.amount * 100 : 0;
+    }
+    function taxAtX(s, x) {
+        var p = posFor(s.sid, x);
+        return taxDueOn(s.sid, s.regionId, p.other, p.amount);
+    }
+    function describeAtX(s, x) {
+        var p = posFor(s.sid, x);
+        return describe(s.sid, s.regionId, p.other, p.amount);
+    }
+
+    /* ============================================================
+          Deriving the bands the chart draws
+          ------------------------------------------------------------
+          The marginal rate is a step function, but where its steps fall
+          depends on the whole interacting pile of allowances, so they are
+          located rather than hand-derived: sample a dense seed grid, then
+          bisect wherever two neighbours disagree. The seeds include every
+          threshold in the year data, and the same thresholds shifted by
+          whatever is being held fixed, because the interesting boundaries
+          are on total income rather than on the axis variable.
+          ============================================================ */
+
+    function seedXs(xMax) {
+        var xs = [], i;
+        for (i = 0; i <= 600; i++) xs.push(xMax * i / 600);
+
+        var marks = [1, 100, 250, 500, 501, 1000, 1001, 1500, 2000, 3000, 3001, 5000, 5001,
+            Y.personalAllowance, Y.savings.startingRateBand,
+            Y.personalAllowance + Y.savings.startingRateBand,
+            Y.dividends.allowance, Y.cgt.aea, Y.cgt.badrLimit,
+            Y.basicRateLimit, Y.basicRateLimit + Y.personalAllowance,
+            Y.higherRateLimit, Y.taperStart, taperEndOf(Y),
+            Y.employeeNI.primaryThreshold, Y.employeeNI.upperEarningsLimit];
+        Y.nonSavings.ruk.concat(Y.nonSavings.sco).forEach(function (b) {
+            if (isFinite(b.upTo)) { marks.push(b.upTo); marks.push(b.upTo + Y.personalAllowance); }
+        });
+
+        // The counterpart that is being held fixed shifts every total-income
+        // threshold along the axis by its own size.
+        var shift = state.axis === "other" ? state.amount : state.other;
+        marks.slice().forEach(function (v) { marks.push(v - shift); });
+
+        marks.forEach(function (v) {
+            if (v > 0 && v < xMax) { xs.push(v); xs.push(v + 0.01); }
+        });
+        xs.sort(function (a, b) { return a - b; });
+        var out = [];
+        for (i = 0; i < xs.length; i++) if (!i || xs[i] - out[out.length - 1] > 1e-9) out.push(xs[i]);
+        return out;
+    }
+
+    var SAME = 1e-3;   // no two real rates here are anywhere near this close
+
+    function deriveBands(valueAt, xMax) {
+        var xs = seedXs(xMax), bands = [];
+        var prevX = 0, cur = valueAt(0);
+        for (var i = 1; i < xs.length; i++) {
+            var guard = 0;
+            while (Math.abs(valueAt(xs[i]) - cur) > SAME && guard++ < 12) {
+                var lo = prevX, hi = xs[i];
+                for (var k = 0; k < 50; k++) {
+                    var mid = (lo + hi) / 2;
+                    if (Math.abs(valueAt(mid) - cur) <= SAME) lo = mid; else hi = mid;
+                }
+                var cut = Math.round(hi * 100) / 100;
+                if (cut > prevX) bands.push({ upTo: cut, rate: cur });
+                prevX = cut;
+                cur = valueAt(cut + 0.005);
+            }
+            if (xs[i] > prevX) prevX = xs[i];
+        }
+        bands.push({ upTo: Infinity, rate: cur });
+        return bands;
+    }
+
+    /* A discontinuity in the tax due -- the personal savings allowance halving
+          the moment its owner becomes a higher rate taxpayer. No legitimate
+          marginal rate here comes close to 100%, so an implied rate above that
+          across an interval can only be a step. */
+    function findCliffs(taxAt, xMax) {
+        var xs = seedXs(xMax), out = [];
+        for (var i = 1; i < xs.length; i++) {
+            var lo = xs[i - 1], hi = xs[i];
+            if (taxAt(hi) - taxAt(lo) <= (hi - lo) + 0.01) continue;
+            for (var k = 0; k < 60; k++) {
+                var mid = (lo + hi) / 2;
+                if (taxAt(mid) - taxAt(lo) > (mid - lo) + 0.005) hi = mid; else lo = mid;
+            }
+            /* lo and hi now bracket the step so tightly that the difference between
+                  them is the step and nothing else -- no sliver of ordinary rate rides
+                  along with it. Both figures are measured from that bracket rather than
+                  from the rounded position, which may land either side of it. */
+            out.push({ at: Math.round(hi * 100) / 100,
+                       exact: hi,
+                       step: taxAt(hi) - taxAt(lo),
+                       perPound: taxAt(lo + 1) - taxAt(lo) });
+        }
+        return out;
+    }
+
+    /* ============================================================
+          Active series
+          ------------------------------------------------------------
+          Savings, dividends and gains are charged at UK rates whichever
+          side of the border you live, and differ between the regions only
+          where the allowance taper drags a slice of other income with them.
+          Rather than draw two lines on top of each other, the two regions
+          are compared first and collapsed into one UK-wide line when they
+          agree everywhere on the plotted range.
+          ============================================================ */
+
+    function curvesAgree(sid, xMax) {
+        for (var i = 0; i <= 60; i++) {
+            var x = xMax * i / 60, p = posFor(sid, x);
+            if (Math.abs(marginalOn(sid, "ruk", p.other, p.amount)
+                       - marginalOn(sid, "sco", p.other, p.amount)) > SAME) return false;
+            if (Math.abs(taxDueOn(sid, "ruk", p.other, p.amount)
+                       - taxDueOn(sid, "sco", p.other, p.amount)) > 0.005) return false;
+        }
+        return true;
+    }
+
+    function activeSeries() {
+        var out = [];
+        var chosen = REGIONS.filter(function (r) { return state.regions[r.id]; });
+        if (!chosen.length) return out;
+
+        SERIES.forEach(function (def) {
+            if (!state.series[def.id]) return;
+            var merged = !def.regional
+                || (chosen.length === 2 && curvesAgree(def.id, state.xMax))
+                || chosen.length === 1;
+
+            if (merged) {
+                var only = chosen.length === 1 && def.regional ? chosen[0] : null;
+                out.push({
+                    id: def.id, sid: def.id, name: def.label,
+                    qual: only ? only.label : "UK-wide",
+                    cssVar: def.cssVar, dash: only ? only.dash : null,
+                    regionId: only ? only.id : "ruk"
+                });
+                return;
+            }
+            chosen.forEach(function (r) {
+                out.push({
+                    id: def.id + "-" + r.id, sid: def.id, name: def.label, qual: r.label,
+                    cssVar: def.cssVar, dash: r.dash, regionId: r.id
+                });
+            });
+        });
+        return out;
+    }
+
+    /* ============================================================
+          Geometry
+          ============================================================ */
+
+    var VB_W = 920, VB_H = 470;
+    var M = { t: 18, r: 26, b: 46, l: 66 };
+    var PLOT_R = VB_W - M.r;
+    var Y0 = VB_H - M.b - 10;          // pixel row of zero, lifted clear of the frame edge
+    var PLOT_W = PLOT_R - M.l;
+
+    var yMax = 75;
+    function xS(v) { return M.l + (v / state.xMax) * PLOT_W; }
+    function xInv(px) { return ((px - M.l) / PLOT_W) * state.xMax; }
+    function yS(r) { return Y0 - (r / yMax) * (Y0 - M.t); }
+
+    function niceMoneyStep(max) {
+        var c = [500, 1000, 2000, 5000, 10000, 20000, 25000, 50000, 100000, 200000];
+        for (var i = 0; i < c.length; i++) if (max / c[i] <= 8) return c[i];
+        return c[c.length - 1];
+    }
+
+    function computeYMax(series) {
+        if (!series.length) return isMoneyView() ? 10000 : 10;
+        var mx = 0;
+        series.forEach(function (s) {
+            curvePoints(s).forEach(function (pt) { if (pt[1] > mx) mx = pt[1]; });
+        });
+        if (isMoneyView()) {
+            if (!(mx > 0)) return 10000;
+            var st = niceMoneyStep(mx);
+            return Math.ceil(mx / st) * st;
+        }
+        if (!mx) return 10;
+        return Math.ceil(mx / 5) * 5 + 5;
+    }
+
+    function yTickValues() {
+        var out = [], st = isMoneyView() ? niceMoneyStep(yMax) : (yMax <= 20 ? 5 : 10);
+        for (var v = 0; v <= yMax + 0.0001; v += st) out.push(v);
+        return out;
+    }
+    function yTickLabel(v) { return isMoneyView() ? gbpShort(v) : v + "%"; }
+    function fmtValue(v) { return isMoneyView() ? gbp(v) : pct(v); }
+
+    var AXIS_TITLE = {
+        marginal:  "Rate on the next pound",
+        effective: "Effective rate on the whole amount",
+        tax:       "Tax due"
+    };
+    function xAxisTitle() {
+        return state.axis === "other"
+            ? "Other income — salary or pension, before tax"
+            : "Size of the interest, dividend or gain";
+    }
+
+    /* ============================================================
+          Formatting
+          ============================================================ */
+
+    function gbp(v) { return "£" + Math.round(v).toLocaleString("en-GB"); }
+    function gbpPence(v) {
+        return "£" + v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function gbpShort(v) {
+        if (v === 0) return "£0";
+        if (Math.abs(v) < 1000) return "£" + Math.round(v);
+        if (v % 1000 === 0) return "£" + (v / 1000) + "k";
+        return "£" + Math.round(v / 1000) + "k";
+    }
+    function pct(r) { return (Math.round(r * 100) / 100) + "%"; }
+
+    /* ============================================================
+          SVG helpers
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+
+    function marginalAtX(s, x) {
+        var p = posFor(s.sid, x);
+        return marginalOn(s.sid, s.regionId, p.other, p.amount);
+    }
+
+    // Step path: horizontal runs joined by vertical jumps at each threshold.
+    function stepPoints(bands, xMax) {
+        var pts = [], r = rateAt(bands, 0);
+        pts.push([0, r]);
+        for (var i = 0; i < bands.length; i++) {
+            var cut = bands[i].upTo;
+            if (!isFinite(cut) || cut >= xMax) break;
+            if (cut <= 0) continue;
+            var nr = rateAt(bands, cut + 0.5);
+            if (nr !== r) { pts.push([cut, r]); pts.push([cut, nr]); r = nr; }
+        }
+        pts.push([xMax, r]);
+        return pts;
+    }
+
+    /* The marginal rate is a step function; the other two views are continuous
+          apart from the allowance cliffs, so they are sampled -- at every band edge,
+          either side of every cliff, and on a grid fine enough for the curve. */
+    function curvePoints(s) {
+        if (state.view === "marginal") return stepPoints(s.bands, state.xMax);
+        var xs = [], seen = {};
+        function add(v) {
+            v = Math.max(0, Math.min(state.xMax, Math.round(v * 100) / 100));
+            if (!seen[v]) { seen[v] = 1; xs.push(v); }
+        }
+        add(0); add(state.xMax);
+        s.bands.forEach(function (b) { if (isFinite(b.upTo)) { add(b.upTo); add(b.upTo + 0.01); } });
+        s.cliffs.forEach(function (c) { add(c.at); add(c.at + 0.01); });
+        for (var i = 0; i <= 240; i++) add(state.xMax * i / 240);
+        xs.sort(function (a, b) { return a - b; });
+        return xs.map(function (x) { return [x, valueAtX(s, x)]; });
+    }
+
+    function pathD(pts) {
+        return pts.map(function (p, i) {
+            return (i ? "L" : "M") + xS(p[0]).toFixed(2) + " " + yS(p[1]).toFixed(2);
+        }).join(" ");
+    }
+
+    function xTickStep(max) {
+        var candidates = [2000, 5000, 10000, 20000, 25000, 50000, 100000];
+        for (var i = 0; i < candidates.length; i++) if (max / candidates[i] <= 9) return candidates[i];
+        return candidates[candidates.length - 1];
+    }
+
+    /* The stretch of the x axis over which the personal allowance is being
+          withdrawn. Gains never taper it, and employment income carries its own
+          income underneath it, so the zone is only drawn when every line that has
+          one agrees on where it is -- otherwise a single wash would be a lie. */
+    function taperZone(series) {
+        var zone = null;
+        for (var i = 0; i < series.length; i++) {
+            var sid = series[i].sid, z = null;
+            if (sid === "sav" || sid === "div") {
+                var fixed = state.axis === "other" ? state.amount : state.other;
+                z = [Y.taperStart - fixed, taperEndOf(Y) - fixed];
+            } else if (sid === "emp" && state.axis === "other") {
+                z = [Y.taperStart, taperEndOf(Y)];
+            }
+            if (!z) continue;
+            if (!zone) zone = z;
+            else if (zone[0] !== z[0] || zone[1] !== z[1]) return null;
+        }
+        if (!zone) return null;
+        zone = [Math.max(0, zone[0]), Math.max(0, zone[1])];
+        return zone[1] > zone[0] ? zone : null;
+    }
+
+    /* ============================================================
+          Render -- chart
+          ============================================================ */
+
+    var svg = document.getElementById("chart");
+    var tip = document.getElementById("tip");
+    var emptyMsg = document.getElementById("empty");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var tableEl = document.getElementById("table");
+    var statsEl = document.getElementById("stats");
+
+    var current = [];      // active series for this render
+    var hoverX = null;     // x under the crosshair
+
+    function render() {
+        current = activeSeries();
+        current.forEach(function (s) {
+            s.bands = deriveBands(function (x) { return marginalAtX(s, x); }, state.xMax);
+            s.cliffs = findCliffs(function (x) { return taxAtX(s, x); }, state.xMax);
+        });
+        yMax = computeYMax(current);
+
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        emptyMsg.hidden = current.length > 0;
+
+        var gGrid = el("g"), gData = el("g"), gAxis = el("g"), gHover = el("g", { id: "hover" });
+
+        var zone = taperZone(current);
+        if (zone && state.xMax > zone[0]) {
+            var x1 = xS(zone[0]), x2 = xS(Math.min(zone[1], state.xMax));
+            gGrid.appendChild(el("rect", { x: x1.toFixed(2), y: M.t, width: (x2 - x1).toFixed(2),
+                height: (Y0 - M.t).toFixed(2), class: "band-wash" }));
+            if (x2 - x1 > 50) {
+                gGrid.appendChild(el("text", { x: ((x1 + x2) / 2).toFixed(2), y: M.t + 13,
+                    class: "band-note", "text-anchor": "middle" }, "allowance tapered away"));
+            }
+        }
+
+        /* Each cliff is a step in the tax due rather than a rate, so in the rate
+              views nothing can carry it and it is marked instead. */
+        var cliffXs = [], seenCliff = {};
+        current.forEach(function (s) {
+            s.cliffs.forEach(function (c) {
+                var k = Math.round(c.at);
+                if (!seenCliff[k]) { seenCliff[k] = 1; cliffXs.push(c.at); }
+            });
+        });
+        cliffXs.forEach(function (cx0) {
+            if (cx0 <= 0 || cx0 >= state.xMax) return;
+            var cx = xS(cx0);
+            gGrid.appendChild(el("line", { x1: cx.toFixed(2), y1: M.t + 20, x2: cx.toFixed(2),
+                y2: Y0, class: "cliff-rule" }));
+            gGrid.appendChild(el("text", { x: (cx - 6).toFixed(2), y: Y0 - 6,
+                class: "cliff-note", "text-anchor": "end" }, "savings allowance cliff"));
+        });
+
+        yTickValues().forEach(function (r) {
+            var yy = yS(r);
+            if (r > 0) gGrid.appendChild(el("line", { x1: M.l, y1: yy.toFixed(2), x2: PLOT_R,
+                y2: yy.toFixed(2), class: "grid-line" }));
+            gAxis.appendChild(el("text", { x: M.l - 10, y: (yy + 4).toFixed(2), class: "tick-text",
+                "text-anchor": "end" }, yTickLabel(r)));
+        });
+
+        gAxis.appendChild(el("line", { x1: M.l, y1: Y0, x2: PLOT_R, y2: Y0, class: "axis-line" }));
+        var step = xTickStep(state.xMax);
+        for (var v = 0; v <= state.xMax + 1; v += step) {
+            var xx = xS(v);
+            gAxis.appendChild(el("line", { x1: xx.toFixed(2), y1: Y0, x2: xx.toFixed(2), y2: Y0 + 5,
+                class: "axis-line" }));
+            gAxis.appendChild(el("text", { x: xx.toFixed(2), y: Y0 + 20, class: "tick-text",
+                "text-anchor": "middle" }, gbpShort(v)));
+        }
+        gAxis.appendChild(el("text", { x: ((M.l + PLOT_R) / 2).toFixed(2), y: VB_H - 6,
+            class: "axis-title", "text-anchor": "middle" }, xAxisTitle()));
+        gAxis.appendChild(el("text", { x: 14, y: ((M.t + Y0) / 2).toFixed(2), class: "axis-title",
+            "text-anchor": "middle",
+            transform: "rotate(-90 14 " + ((M.t + Y0) / 2).toFixed(2) + ")" }, AXIS_TITLE[state.view]));
+
+        current.forEach(function (s) {
+            var p = el("path", { d: pathD(curvePoints(s)), class: "series-line" });
+            p.style.stroke = "var(" + s.cssVar + ")";
+            if (s.dash) p.setAttribute("stroke-dasharray", s.dash);
+            gData.appendChild(p);
+        });
+
+        svg.appendChild(gGrid);
+        svg.appendChild(gAxis);
+        svg.appendChild(gData);
+        svg.appendChild(gHover);
+
+        svg.setAttribute("aria-label", AXIS_TITLE[state.view] + " by " + xAxisTitle().toLowerCase()
+            + ", " + Y.label + ".");
+        document.getElementById("year-heading").textContent = Y.label;
+        renderFigures();
+        renderLegend();
+        renderCaption();
+        renderStats();
+        renderTable();
+        if (hoverX !== null) drawHover(hoverX); else clearHover();
+    }
+
+    /* ============================================================
+          Render -- legend
+          ============================================================ */
+
+    function keySvg(cssVar, dash, w) {
+        w = w || 22;
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", w); s.setAttribute("height", 8); s.setAttribute("viewBox", "0 0 " + w + " 8");
+        var l = el("line", { x1: 0, y1: 4, x2: w, y2: 4, "stroke-width": 2, "stroke-linecap": "round" });
+        l.style.stroke = "var(" + cssVar + ")";
+        if (dash) l.setAttribute("stroke-dasharray", dash);
+        s.appendChild(l);
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        if (current.length < 2) { legendEl.style.display = "none"; return; }
+        legendEl.style.display = "";
+        current.forEach(function (s) {
+            var item = div("lg-item");
+            item.appendChild(keySvg(s.cssVar, s.dash));
+            item.appendChild(document.createTextNode(s.name + " · " + s.qual));
+            legendEl.appendChild(item);
+        });
+    }
+
+    function renderCaption() {
+        if (!current.length) { captionEl.textContent = ""; return; }
+        var parts = [];
+
+        if (current.length === 1) {
+            parts.push("Showing " + current[0].name + " · " + current[0].qual + ".");
+        } else if (current.some(function (s) { return s.dash; })) {
+            parts.push("Dashed lines are Scotland; solid lines are the rest of the UK.");
+        }
+
+        parts.push(state.axis === "other"
+            ? "Each line is a " + gbp(state.amount) + " interest payment, dividend or gain "
+                + "sitting on top of the other income on the axis."
+            : "Each line is an interest payment, dividend or gain of the size on the axis, "
+                + "sitting on top of " + (state.other > 0 ? gbp(state.other) + " of other income"
+                                                          : "no other income") + ".");
+
+        var ukWide = current.filter(function (s) { return s.qual === "UK-wide"; });
+        if (ukWide.length && state.regions.ruk && state.regions.sco) {
+            parts.push("Scotland sets no rate on savings, dividends or gains, so "
+                + (ukWide.length === current.length ? "every line here is"
+                                                    : ukWide.map(function (s) { return s.name.toLowerCase(); }).join(", ") + " are")
+                + " the same either side of the border and one line covers both.");
+        }
+
+        if (current.some(function (s) { return s.sid === "emp"; })) {
+            parts.push(state.axis === "other"
+                ? "The employment line is income tax plus employee National Insurance on the next "
+                    + "pound of salary, for scale."
+                : "The employment line is the tax on the salary underneath, so it is a flat "
+                    + "reference rather than a response to the gain.");
+        }
+
+        var anyCliff = current.some(function (s) { return s.cliffs.length; });
+        if (anyCliff && !isMoneyView()) {
+            parts.push("The marked cliff is a step in the tax due, not a rate, so no line can "
+                + "carry it; it is drawn as a vertical jump in the tax view.");
+        }
+
+        if (state.view === "effective") {
+            parts.push("Effective rate is the tax the whole amount causes divided by the amount "
+                + "itself, so nil-rate bands keep it below the marginal rate.");
+        } else if (isMoneyView()) {
+            parts.push("Tax due is the whole bill with the interest, dividend or gain, less the "
+                + "bill without it.");
+        }
+        captionEl.textContent = parts.join(" ");
+    }
+
+    /* ============================================================
+          Render -- the cliffs in numbers
+          ============================================================ */
+
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        current.forEach(function (s) {
+            s.cliffs.forEach(function (c) {
+                if (c.at <= 0 || c.at >= state.xMax) return;
+                var g = document.createElement("div");
+                g.className = "stat-group";
+                var h = document.createElement("h3");
+                h.textContent = s.name + " · " + s.qual;
+                g.appendChild(h);
+
+                var row = div("stat-row");
+                var rows = [[state.axis === "other" ? "Cliff at other income of"
+                                                    : "Cliff at an amount of", gbp(c.at)],
+                            ["Step in the tax due", gbpPence(c.step)]];
+                // On the amount axis the pound that crosses the line is a pound of
+                // interest, which is the figure worth quoting; on the other-income
+                // axis it is a pound of salary, and means something subtler.
+                if (state.axis === "amount") rows.push(["One more pound costs", gbpPence(c.perPound)]);
+                rows.forEach(function (pair) {
+                    var cell = document.createElement("div");
+                    var lab = document.createElement("span");
+                    lab.className = "stat-label";
+                    lab.textContent = pair[0];
+                    cell.appendChild(lab);
+                    cell.appendChild(div("stat-value", pair[1]));
+                    row.appendChild(cell);
+                });
+                g.appendChild(row);
+                g.appendChild(div("stat-note",
+                    "The personal savings allowance drops from " + gbp(Y.savings.psaBasic) + " to "
+                    + gbp(Y.savings.psaHigher) + " on becoming a higher rate taxpayer, and to nothing "
+                    + "on becoming an additional rate one. The allowance already spent is withdrawn "
+                    + "with it, so the pound that crosses the line is taxed many times over. The step "
+                    + "is the jump on its own; the pound is also taxed at its own rate, and above "
+                    + gbp(Y.taperStart) + " it drags a further 50p of income into tax with it."));
+                statsEl.appendChild(g);
+            });
+        });
+    }
+
+    /* Every figure here is read straight out of the year data, so it can never
+          drift from what the chart is computing. */
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+
+        var h = document.createElement("h4");
+        h.textContent = "Figures for " + Y.label;
+        host.appendChild(h);
+
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        /* Bands are held as taxable income; these are the gross figures people
+              recognise. Adding the allowance back is only right below the taper —
+              inside it every extra pound of income costs 1.5 pounds of taxable
+              income, and above it the allowance is gone and the two coincide. */
+        function grossFor(t) {
+            var pa = Y.personalAllowance, ts = Y.taperStart;
+            if (t <= ts - pa) return t + pa;
+            if (t >= taperEndOf(Y)) return t;
+            return (t + pa + ts / 2) / 1.5;
+        }
+        function bandList(regionId) {
+            var prev = 0;
+            return Y.nonSavings[regionId].map(function (b) {
+                var range = isFinite(b.upTo)
+                    ? gbp(grossFor(prev)) + " – " + gbp(grossFor(b.upTo))
+                    : "over " + gbp(grossFor(prev));
+                prev = b.upTo;
+                return b.name + " " + b.rate + "% (" + range + ")";
+            }).join("; ");
+        }
+
+        row("Personal allowance", gbp(Y.personalAllowance) + ", withdrawn £1 per £2 above "
+            + gbp(Y.taperStart) + ", nil at " + gbp(taperEndOf(Y))
+            + "; capital gains do not count towards it");
+        row("Basic rate limit", gbp(Y.basicRateLimit) + " of taxable income — "
+            + gbp(Y.basicRateLimit + Y.personalAllowance) + " with a full allowance");
+        row("Additional rate from", gbp(Y.higherRateLimit) + " of taxable income");
+        row("Starting rate for savings", gbp(Y.savings.startingRateBand)
+            + " at 0%, reduced £1 per £1 by other income above the allowance, so nil once other "
+            + "income reaches " + gbp(Y.personalAllowance + Y.savings.startingRateBand));
+        row("Personal savings allowance", gbp(Y.savings.psaBasic) + " basic rate, "
+            + gbp(Y.savings.psaHigher) + " higher rate, nil additional rate");
+        row("Savings rates", Y.savings.rates.join("%, ") + "%");
+        row("Dividend allowance", gbp(Y.dividends.allowance));
+        row("Dividend rates", "ordinary " + Y.dividends.rates[0] + "%, upper "
+            + Y.dividends.rates[1] + "%, additional " + Y.dividends.rates[2] + "%");
+        row("Capital gains", "annual exempt amount " + gbp(Y.cgt.aea) + "; " + Y.cgt.lower
+            + "% within the unused basic rate band, " + Y.cgt.upper + "% above it");
+        row("Business Asset Disposal Relief", Y.cgt.badr + "% up to a "
+            + gbp(Y.cgt.badrLimit) + " lifetime limit");
+        row("Income tax, rest of UK", bandList("ruk"));
+        row("Income tax, Scotland", bandList("sco"));
+        row("Employee NI", Y.employeeNI.mainRate + "% from " + gbp(Y.employeeNI.primaryThreshold)
+            + " to " + gbp(Y.employeeNI.upperEarningsLimit) + ", then " + Y.employeeNI.upperRate + "%");
+        host.appendChild(dl);
+    }
+
+    /* ============================================================
+          Render -- table (the no-hover, no-colour route to every value)
+          ============================================================ */
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        if (!current.length) return;
+
+        var marginal = state.view === "marginal";
+        var axisNoun = state.axis === "other" ? "other income" : "interest, dividend or gain";
+        var cap = document.createElement("caption");
+        cap.textContent = marginal
+            ? "Rate on the next pound in each band of " + axisNoun + ", " + Y.label
+                + ". Bands cover the full scale, including any beyond the chart's current range."
+            : (isMoneyView() ? "Tax due at selected values of " + axisNoun + ", " + Y.label + ". "
+                             : "Effective rate at selected values of " + axisNoun + ", " + Y.label + ". ")
+                + "Rows follow the chart's current range.";
+        tableEl.appendChild(cap);
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        var th0 = document.createElement("th"); th0.scope = "col";
+        th0.textContent = marginal ? (state.axis === "other" ? "Other income band" : "Amount band")
+                                   : (state.axis === "other" ? "Other income" : "Amount");
+        hr.appendChild(th0);
+        current.forEach(function (s) {
+            var th = document.createElement("th"); th.scope = "col";
+            var k = document.createElement("span");
+            k.className = "th-key";
+            k.style.background = "var(" + s.cssVar + ")";
+            th.appendChild(k);
+            th.appendChild(document.createTextNode(s.name));
+            var q = document.createElement("span");
+            q.className = "th-qual";
+            q.textContent = s.qual;
+            th.appendChild(q);
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr); tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        function addRow(label, valueFor) {
+            var tr = document.createElement("tr");
+            var td0 = document.createElement("td");
+            td0.textContent = label;
+            tr.appendChild(td0);
+            current.forEach(function (s) {
+                var td = document.createElement("td");
+                td.textContent = valueFor(s);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+
+        if (marginal) {
+            var cuts = [], seen = {};
+            current.forEach(function (s) {
+                s.bands.forEach(function (b) {
+                    var k = String(b.upTo);
+                    if (!seen[k]) { seen[k] = 1; cuts.push(b.upTo); }
+                });
+            });
+            cuts.sort(function (p, q) { return p - q; });
+            var prev = 0;
+            cuts.forEach(function (upTo) {
+                var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+                addRow(isFinite(upTo) ? gbp(prev) + " – " + gbp(upTo) : "Over " + gbp(prev),
+                       function (s) { return pct(rateAt(s.bands, sample)); });
+                prev = upTo;
+            });
+        } else {
+            var st = xTickStep(state.xMax);
+            for (var v = st; v <= state.xMax + 1; v += st) {
+                (function (x) { addRow(gbp(x), function (s) { return fmtValue(valueAtX(s, x)); }); })(v);
+            }
+        }
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Hover layer -- crosshair finds the x, one tooltip lists every series
+          ============================================================ */
+
+    function clearHover() {
+        var g = svg.querySelector("#hover");
+        if (g) while (g.firstChild) g.removeChild(g.firstChild);
+        tip.classList.remove("on");
+    }
+
+    function drawHover(x) {
+        var g = svg.querySelector("#hover");
+        if (!g || !current.length) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+
+        var px = xS(x);
+        g.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2), y2: Y0, class: "crosshair" }));
+
+        current.forEach(function (s) {
+            var c = el("circle", { cx: px.toFixed(2), cy: yS(valueAtX(s, x)).toFixed(2), r: 4.5,
+                class: "hover-dot" });
+            c.style.fill = "var(" + s.cssVar + ")";
+            g.appendChild(c);
+        });
+
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(div("tip-head", gbp(x)));
+        current.forEach(function (s) {
+            var row = div("tip-row");
+            var key = div("tip-key");
+            key.style.background = "var(" + s.cssVar + ")";
+            if (s.dash) key.style.background =
+                "repeating-linear-gradient(90deg, var(" + s.cssVar + ") 0 5px, transparent 5px 8px)";
+            row.appendChild(key);
+            row.appendChild(div("tip-name", s.name + " · " + s.qual));
+            row.appendChild(div("tip-val", fmtValue(valueAtX(s, x))));
+            tip.appendChild(row);
+            tip.appendChild(div("tip-band", describeAtX(s, x)));
+        });
+
+        var rect = svg.getBoundingClientRect();
+        var scale = rect.width / VB_W;
+        var left = px * scale + 16;
+        tip.classList.add("on");
+        var tw = tip.offsetWidth;
+        if (left + tw > rect.width - 4) left = px * scale - tw - 16;
+        if (left < 4) left = 4;
+        tip.style.left = left + "px";
+        tip.style.top = Math.max(4, Math.min(rect.height - tip.offsetHeight - 4, rect.height * 0.16)) + "px";
+    }
+
+    function xFromEvent(e) {
+        var rect = svg.getBoundingClientRect();
+        var px = ((e.clientX - rect.left) / rect.width) * VB_W;
+        if (px < M.l - 2 || px > PLOT_R + 2) return null;
+        var v = Math.round(xInv(px) / 100) * 100;
+        return Math.max(0, Math.min(state.xMax, v));
+    }
+
+    svg.addEventListener("pointermove", function (e) {
+        if (!current.length) return;
+        var v = xFromEvent(e);
+        if (v === null) { hoverX = null; clearHover(); return; }
+        hoverX = v; drawHover(v);
+    });
+    svg.addEventListener("pointerleave", function () { hoverX = null; clearHover(); });
+
+    // Keyboard: same readout as hover.
+    svg.addEventListener("keydown", function (e) {
+        if (!current.length) return;
+        var stepK = e.shiftKey ? state.xMax / 20 : state.xMax / 100;
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            var base = hoverX === null ? state.xMax / 2 : hoverX;
+            var next = base + (e.key === "ArrowRight" ? stepK : -stepK);
+            hoverX = Math.max(0, Math.min(state.xMax, Math.round(next / 100) * 100));
+            drawHover(hoverX);
+            e.preventDefault();
+        } else if (e.key === "Escape") {
+            hoverX = null; clearHover();
+        }
+    });
+    svg.addEventListener("blur", function () { hoverX = null; clearHover(); });
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    function makeChip(label, checked, tickColor, onToggle) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", checked ? "true" : "false");
+        if (tickColor) b.style.setProperty("--tick-col", tickColor);
+        var t = document.createElement("span");
+        t.className = "tick";
+        t.setAttribute("aria-hidden", "true");
+        b.appendChild(t);
+        b.appendChild(document.createTextNode(label));
+        b.addEventListener("click", function () {
+            var next = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", next ? "true" : "false");
+            onToggle(next);
+            hoverX = null;
+            render();
+        });
+        return b;
+    }
+
+    var seriesChips = document.getElementById("series-chips");
+    SERIES.forEach(function (def) {
+        seriesChips.appendChild(makeChip(def.label, state.series[def.id],
+            "var(" + def.cssVar + ")", function (on) { state.series[def.id] = on; }));
+    });
+
+    var regionChips = document.getElementById("region-chips");
+    REGIONS.forEach(function (r) {
+        regionChips.appendChild(makeChip(r.label, state.regions[r.id], null, function (on) {
+            state.regions[r.id] = on;
+        }));
+    });
+
+    function syncAxisControls() {
+        document.getElementById("amount-wrap").hidden = state.axis !== "other";
+        document.getElementById("other-wrap").hidden = state.axis === "other";
+    }
+
+    document.getElementById("axis-sel").addEventListener("change", function (e) {
+        state.axis = e.target.value;
+        syncAxisControls();
+        hoverX = null;
+        render();
+    });
+    document.getElementById("view-sel").addEventListener("change", function (e) {
+        state.view = e.target.value;
+        hoverX = null;
+        render();
+    });
+    document.getElementById("amount-sel").addEventListener("change", function (e) {
+        state.amount = Number(e.target.value);
+        hoverX = null;
+        render();
+    });
+    document.getElementById("other-sel").addEventListener("change", function (e) {
+        state.other = Number(e.target.value);
+        hoverX = null;
+        render();
+    });
+    document.getElementById("range-sel").addEventListener("change", function (e) {
+        state.xMax = Number(e.target.value);
+        hoverX = null;
+        render();
+    });
+    document.getElementById("year-sel").addEventListener("change", function (e) {
+        state.year = e.target.value;
+        loadYear(state.year);
+        hoverX = null;
+        render();
+    });
+
+    function buildYearOptions() {
+        var sel = document.getElementById("year-sel");
+        YEAR_ORDER.forEach(function (id) {
+            var o = document.createElement("option");
+            o.value = id;
+            o.textContent = TAX_YEARS[id].label;
+            if (id === state.year) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          These run on every load and report into the assumptions panel.
+          They exist so that updating TAX_YEARS for a new tax year is safe:
+          if a figure is mistyped or a rule changes shape, the invariants
+          below break loudly rather than producing a plausible but wrong
+          chart. Add pinned values for each new year.
+
+          The pinned figures were computed by hand from the published rules
+          before this file was written, so they check the engine rather than
+          merely recording what it currently says.
+          ============================================================ */
+
+    var PINNED = {
+        "2025-26": {
+            // [region, other income, amount, tax caused by that amount]
+            savings:   [["ruk", 30000, 2000, 200], ["ruk", 12570, 6000, 0],
+                        ["ruk", 49570, 700, 0], ["ruk", 49570, 701, 40.40],
+                        ["ruk", 49270, 1000, 0], ["ruk", 49270, 1001, 100.40]],
+            dividends: [["ruk", 50000, 10000, 3206.25], ["ruk", 100000, 10000, 5206.25]],
+            gains:     [["ruk", 30000, 20000, 3060], ["sco", 45000, 20000, 3763.80],
+                        ["ruk", 20000, 3000, 0]],
+            badr:      [["ruk", 0, 500000, 69580]],
+            // [series, region, other income, amount, rate on the next pound]
+            marginal:  [["div", "ruk", 100000, 10000, 53.75], ["div", "sco", 100000, 10000, 56.25],
+                        ["sav", "ruk", 100000, 5000, 60], ["sav", "sco", 100000, 5000, 62.5],
+                        ["cg", "ruk", 30000, 20000, 18], ["cg", "sco", 45000, 20000, 24],
+                        ["sav", "ruk", 12570, 4000, 0], ["sav", "ruk", 12570, 7000, 20],
+                        ["div", "ruk", 20000, 5000, 8.75], ["badr", "ruk", 0, 500000, 14]]
+        },
+        "2026-27": {
+            savings:   [["ruk", 30000, 2000, 200], ["ruk", 49570, 701, 40.40]],
+            dividends: [["ruk", 50000, 10000, 3396.25], ["ruk", 100000, 10000, 5396.25]],
+            gains:     [["ruk", 30000, 20000, 3060], ["sco", 45000, 20000, 3763.80]],
+            badr:      [["ruk", 0, 500000, 89460]],
+            marginal:  [["div", "ruk", 20000, 5000, 10.75], ["div", "ruk", 100000, 10000, 55.75],
+                        ["sav", "ruk", 12570, 7000, 20], ["badr", "ruk", 0, 500000, 18],
+                        ["cg", "ruk", 30000, 20000, 18]]
+        }
+    };
+
+    /* The UK tax year starts on 6 April. */
+    function currentTaxYearId(d) {
+        d = d || new Date();
+        var m = d.getMonth();
+        var start = (m > 3 || (m === 3 && d.getDate() >= 6)) ? d.getFullYear() : d.getFullYear() - 1;
+        return start + "-" + ("0" + ((start + 1) % 100)).slice(-2);
+    }
+
+    function integrateBands(bands, cliffs, A) {
+        var total = 0, prev = 0;
+        for (var i = 0; i < bands.length; i++) {
+            var top = Math.min(bands[i].upTo, A);
+            if (top > prev) total += (top - prev) * bands[i].rate / 100;
+            if (bands[i].upTo >= A) break;
+            prev = bands[i].upTo;
+        }
+        cliffs.forEach(function (c) { if (c.exact < A) total += c.step; });
+        return total;
+    }
+
+    function runSelfChecks() {
+        var results = [], failures = [];
+        function check(name, ok, detail) {
+            results.push(ok);
+            if (!ok) failures.push(name + (detail ? " — " + detail : ""));
+        }
+        function near(a, b, tol) { return Math.abs(a - b) <= (tol === undefined ? 0.01 : tol); }
+
+        var saved = { year: state.year, axis: state.axis, other: state.other,
+                      amount: state.amount, xMax: state.xMax };
+
+        Object.keys(TAX_YEARS).forEach(function (yid) {
+            loadYear(yid);
+            var tag = yid + ": ";
+
+            /* -- the rate tables themselves ------------------------------- */
+            ["ruk", "sco"].forEach(function (rg) {
+                var b = Y.nonSavings[rg], sorted = true, sane = true;
+                for (var i = 0; i < b.length; i++) {
+                    if (i && !(b[i].upTo > b[i - 1].upTo)) sorted = false;
+                    if (!(b[i].rate >= 0) || !isFinite(b[i].rate)) sane = false;
+                }
+                check(tag + rg + " bands ascending", sorted);
+                check(tag + rg + " rates sane", sane);
+                check(tag + rg + " open-ended", b[b.length - 1].upTo === Infinity);
+                check(tag + rg + " top band ends at the additional rate threshold",
+                      b[b.length - 2].upTo === Y.higherRateLimit);
+            });
+            check(tag + "savings rates ascend", Y.savings.rates[0] < Y.savings.rates[1]
+                                             && Y.savings.rates[1] < Y.savings.rates[2]);
+            check(tag + "dividend rates ascend", Y.dividends.rates[0] < Y.dividends.rates[1]
+                                              && Y.dividends.rates[1] < Y.dividends.rates[2]);
+            check(tag + "higher psa below basic psa", Y.savings.psaHigher < Y.savings.psaBasic);
+
+            /* -- allowances behave the way the notes describe -------------- */
+            check(tag + "starting rate gone once other income reaches its ceiling",
+                  marginalOn("sav", "ruk", Y.personalAllowance + Y.savings.startingRateBand,
+                             Y.savings.psaBasic + 1) === Y.savings.rates[0]);
+            check(tag + "gains never taper the allowance",
+                  paFor(Y, 50000) === paFor(Y, 50000) && cgtOn(Y, "ruk", 200000, 0, false) === 0
+                  && near(cgtOn(Y, "ruk", 0, Y.cgt.aea, false), 0));
+            check(tag + "dividend allowance covers the first " + Y.dividends.allowance,
+                  near(incomeTax(Y, "ruk", 30000, 0, Y.dividends.allowance),
+                       incomeTax(Y, "ruk", 30000, 0, 0)));
+            check(tag + "psa covers the first " + Y.savings.psaBasic + " for a basic rate payer",
+                  near(incomeTax(Y, "ruk", 30000, Y.savings.psaBasic, 0),
+                       incomeTax(Y, "ruk", 30000, 0, 0)));
+
+            /* -- an independent route to the same tax ----------------------
+                  With no savings or dividends the engine must agree with the
+                  statutory bands applied directly to taxable income. */
+            [0, 15000, 45000, 90000, 110000, 130000, 200000].forEach(function (x) {
+                ["ruk", "sco"].forEach(function (rg) {
+                    var pa = paFor(Y, x);
+                    var direct = sliceTax(0, Math.max(0, x - pa), Y.nonSavings[rg]);
+                    check(tag + rg + " non-savings cross-check at " + x,
+                          near(incomeTax(Y, rg, x, 0, 0), direct, 0.01));
+                });
+            });
+
+            /* -- tax due never falls as the amount grows ------------------- */
+            ["sav", "div", "cg", "badr"].forEach(function (sid) {
+                var prev = -1, mono = true;
+                for (var a = 0; a <= 150000; a += 250) {
+                    var t = taxDueOn(sid, "ruk", 40000, a);
+                    if (t < prev - 0.005) mono = false;
+                    prev = t;
+                }
+                check(tag + sid + " tax due is monotonic", mono);
+            });
+
+            /* -- the bands the chart draws reproduce the exact tax ---------
+                  Every line is drawn from a derived band list plus any marked
+                  cliffs; integrating that back must return what the engine says,
+                  or the picture and the arithmetic have parted company. */
+            [{ axis: "amount", other: 49270, sids: ["sav", "div", "cg", "badr"] },
+             { axis: "amount", other: 0,     sids: ["sav", "div", "cg", "badr"] },
+             { axis: "amount", other: 150000, sids: ["sav", "div", "cg", "badr"] },
+             // Employment income is its own base, so the salary axis is the one on
+             // which its marginal rate is the derivative of its tax.
+             { axis: "other",  other: 0,     sids: ["emp"] }].forEach(function (sc) {
+            state.axis = sc.axis;
+            state.other = sc.other;        // 49270 sits just under the psa cliff
+            state.xMax = 60000;
+            sc.sids.forEach(function (sid) {
+                ["ruk", "sco"].forEach(function (rg) {
+                    var s = { sid: sid, regionId: rg };
+                    var bands = deriveBands(function (x) { return marginalAtX(s, x); }, state.xMax);
+                    var cliffs = findCliffs(function (x) { return taxAtX(s, x); }, state.xMax);
+                    var ok = true, worst = "";
+                    for (var i = 0; i < bands.length; i++) {
+                        if (i && !(bands[i].upTo > bands[i - 1].upTo)) { ok = false; worst = "not ascending"; }
+                        if (!(bands[i].rate >= 0) || bands[i].rate > 100) { ok = false; worst = "rate " + bands[i].rate; }
+                    }
+                    check(tag + sid + " " + rg + " band list is sane", ok, worst);
+                    [500, 3100, 10000, 25000, 47500, 59000].forEach(function (a) {
+                        var got = integrateBands(bands, cliffs, a), want = taxAtX(s, a);
+                        check(tag + sid + " " + rg + " on " + sc.axis + "/" + sc.other
+                                  + " bands integrate to the tax at " + a,
+                              near(got, want, 0.03), got.toFixed(2) + " vs " + want.toFixed(2));
+                    });
+                });
+            });
+            });
+            state.axis = saved.axis; state.other = saved.other; state.xMax = saved.xMax;
+
+            /* -- pinned, hand-verified figures ----------------------------- */
+            var pin = PINNED[yid];
+            if (!pin) {
+                check(tag + "has pinned values", false, "add hand-checked figures for this year");
+            } else {
+                [["savings", "sav"], ["dividends", "div"], ["gains", "cg"], ["badr", "badr"]]
+                        .forEach(function (pair) {
+                    (pin[pair[0]] || []).forEach(function (t) {
+                        var got = taxDueOn(pair[1], t[0], t[1], t[2]);
+                        check(tag + pair[0] + " " + t[0] + " " + t[1] + "/" + t[2],
+                              near(got, t[3], 0.01), got.toFixed(2) + " vs " + t[3]);
+                    });
+                });
+                (pin.marginal || []).forEach(function (t) {
+                    var got = marginalOn(t[0], t[1], t[2], t[3]);
+                    check(tag + "marginal " + t[0] + " " + t[1] + " " + t[2] + "/" + t[3],
+                          near(got, t[4], 0.001), got + " vs " + t[4]);
+                });
+            }
+        });
+
+        state.year = saved.year; state.axis = saved.axis; state.other = saved.other;
+        state.amount = saved.amount; state.xMax = saved.xMax;
+        loadYear(saved.year);
+        syncAxisControls();
+
+        var missing = !TAX_YEARS[currentTaxYearId()] ? currentTaxYearId() : null;
+
+        var passed = results.filter(Boolean).length;
+        var out = document.getElementById("selfcheck");
+        if (failures.length) {
+            out.className = "selfcheck bad";
+            out.textContent = "✖ " + failures.length + " of " + results.length
+                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
+                + (failures.length > 6 ? "; …" : "");
+            if (window.console) console.error("Investment tax self-checks failed:", failures);
+        } else {
+            out.className = "selfcheck ok";
+            out.textContent = "✓ " + passed + " self-checks passed for "
+                + Object.keys(TAX_YEARS).length + " tax years.";
+        }
+        if (missing) {
+            var warn = document.createElement("p");
+            warn.className = "selfcheck bad";
+            warn.textContent = "⚠ The " + missing.replace("-", "/")
+                + " tax year has begun but is not in TAX_YEARS — add it.";
+            out.parentNode.insertBefore(warn, out.nextSibling);
+        }
+        window.__investmentSelfChecks = { passed: passed, total: results.length, failures: failures };
+    }
+
+    buildYearOptions();
+    syncAxisControls();
+    render();
+    runSelfChecks();
+    window.addEventListener("resize", function () { if (hoverX !== null) drawHover(hoverX); });
+})();
+</script>
+</body>
+</html>
