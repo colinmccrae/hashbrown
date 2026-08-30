@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>UK Tax &amp; Take-Home Pay &mdash; Hash Brown Engineering</title>
-    <meta name="description" content="Marginal rates, effective rates and take-home pay for UK employees in 2025/26 and 2026/27, comparing Scotland with the rest of the UK.">
+    <meta name="description" content="Marginal rates, effective rates and take-home pay for UK employees in 2025/26 and 2026/27, comparing Scotland with the rest of the UK, including the Universal Credit taper.">
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/style.css">
     <style>
@@ -35,6 +35,7 @@
                 --series-4:       #eda100;  /* child benefit charge */
                 --series-5:       #e87ba4;  /* employer NI */
                 --series-6:       #4a3aa7;  /* student loan */
+                --series-7:       #b52a86;  /* universal credit */
 
                 font-size: 14px;
                 line-height: 1.5;
@@ -50,6 +51,7 @@
                     --series-4:     #c98500;
                     --series-5:     #d55181;
                     --series-6:     #9085e9;
+                    --series-7:     #e364b8;
                 }
             }
 
@@ -362,6 +364,33 @@
                         </select>
                     </div>
                     <div>
+                        <label class="ctl-label" for="uc-sel">Universal Credit</label>
+                        <select id="uc-sel">
+                            <option value="none" selected>Not claiming</option>
+                            <option value="single">Single claimant</option>
+                            <option value="couple">Couple, one earner</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="uc-rent">Rent, for housing element</label>
+                        <select id="uc-rent">
+                            <option value="0" selected>No housing element</option>
+                            <option value="400">&pound;400 a month</option>
+                            <option value="600">&pound;600 a month</option>
+                            <option value="800">&pound;800 a month</option>
+                            <option value="1000">&pound;1,000 a month</option>
+                            <option value="1400">&pound;1,400 a month</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="uc-health">Health element</label>
+                        <select id="uc-health">
+                            <option value="none" selected>None</option>
+                            <option value="standard">Limited capability for work</option>
+                            <option value="protected">&hellip; at the protected rate</option>
+                        </select>
+                    </div>
+                    <div>
                         <label class="ctl-label" for="range-sel">Income range</label>
                         <select id="range-sel">
                             <option value="60000">&pound;0 &ndash; &pound;60k</option>
@@ -486,10 +515,47 @@
                             household can lose everything on one parent's salary while the other earns little; the
                             entitlement is reconfirmed quarterly; and a pension contribution that brings adjusted net
                             income back under &pound;100,000 restores it in full, which is the standard mitigation.</li>
+                        <li><strong>Universal Credit is the reason the bottom of this chart is not
+                            the gentle place it looks.</strong> The award falls by 55p for every &pound;1 of
+                            <em>net</em> earnings above the work allowance &mdash; net meaning after income tax,
+                            National Insurance and any pension contribution. Because it bites on what is left
+                            rather than on the gross, it compounds with tax instead of adding to it: a basic
+                            rate taxpayer keeps 72p of the next pound and then loses 55% of that, giving
+                            20 + 8 + 39.6 = <strong>67.6%</strong>. That is a higher rate than the 60% trap,
+                            and it applies to some of the lowest earners in the country.</li>
+                        <li><strong>The work allowance is conditional.</strong> It exists only for a household
+                            with a child or with limited capability for work; everyone else is tapered from the
+                            very first pound of earnings, so the taper can run entirely below the income tax
+                            threshold and be finished before any tax is ever paid. Where it does apply, having
+                            rent met by the housing element cuts it to the lower of the two rates.</li>
+                        <li><strong>Student loans make it worse than the arithmetic suggests.</strong>
+                            Repayments are <em>not</em> deducted before the taper is applied, so a graduate
+                            keeps 9% less of the pound but Universal Credit is withdrawn as though they had
+                            not paid it. The two stack in full.</li>
+                        <li><strong>What the two years show.</strong> The two-child limit is removed from
+                            6 April 2026, so a third or later child brings a child element for the first time
+                            &mdash; a larger award, tapered over a longer stretch of salary. From the same date
+                            the health element splits in two: an award already in payment, terminal illness or
+                            the severe conditions criteria keep the protected rate, while a new award is worth
+                            less than half of it. Both are selectable above.</li>
+                        <li><strong>UC assumptions.</strong> The claimant is 25 or over; on a couple claim
+                            only one partner earns, though the award and the taper are assessed jointly, so a
+                            second earner would exhaust it sooner. Every child is assumed born on or after
+                            6 April 2017 &mdash; an eldest child born before it attracts a higher element.
+                            The award is annualised to sit on this chart's axis; real Universal Credit is
+                            assessed monthly on the earnings actually received in each period and does not
+                            average out over a year.</li>
+                        <li><strong>Not modelled in the UC figures:</strong> the childcare element (85% of
+                            costs, which cannot be claimed alongside Tax-Free Childcare &mdash; so the childcare
+                            support plotted here and a UC claim are mutually exclusive in real life), the
+                            carer element, capital and savings limits, the benefit cap, surplus earnings,
+                            deductions for advances or arrears, and the local housing allowance cap on the
+                            housing element. Rent is taken at face value.</li>
                         <li><strong>Excluded:</strong>
-                            pension contributions and salary sacrifice, dividend and savings income (which use UK-wide
-                            rates even in Scotland), and benefits withdrawal such as Universal Credit or tax-free
-                            childcare cliff edges. Any of these can push the true marginal rate materially higher.</li>
+                            pension contributions and salary sacrifice, and dividend and savings income, which use
+                            UK-wide rates even in Scotland &mdash; those have a tool of their own. Benefits other than
+                            Universal Credit and child benefit are not modelled either. Any of these can push the
+                            true marginal rate materially higher.</li>
                         <li>Gross income is treated as employment income only, all taxable at the rates above.</li>
                     </ul>
                     <p class="selfcheck" id="selfcheck"></p>
@@ -563,7 +629,19 @@
             },
             childBenefit: { eldest: 26.05, other: 17.25, weeks: 52 },
             hicbc: { start: 60000, end: 80000 },
-            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 }
+            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 },
+            /* gov.uk/government/publications/benefit-and-pension-rates-2025-to-2026
+                  Monthly figures, as UC is assessed and published monthly. */
+            universalCredit: {
+                taper: 55,
+                standardAllowance: { single: 400.14, couple: 628.10 },
+                workAllowance: { withHousing: 411, withoutHousing: 684 },
+                childFirst: 292.81,        // higher rate only for a child born before 6 April 2017
+                childOther: 292.81,
+                twoChildLimit: true,
+                lcwra: 423.27,
+                lcwraProtected: 423.27
+            }
         },
 
         "2026-27": {
@@ -603,7 +681,21 @@
             // gov.uk/child-benefit-rates
             childBenefit: { eldest: 27.05, other: 17.90, weeks: 52 },
             hicbc: { start: 60000, end: 80000 },
-            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 }
+            childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 },
+            /* The two-child limit is removed from 6 April 2026, and the health
+                  element splits: claims already in payment, terminal illness and the
+                  severe conditions criteria keep the protected rate, while a new
+                  award drops to less than half of it. */
+            universalCredit: {
+                taper: 55,
+                standardAllowance: { single: 424.90, couple: 666.97 },
+                workAllowance: { withHousing: 427, withoutHousing: 710 },
+                childFirst: 303.94,
+                childOther: 303.94,
+                twoChildLimit: false,
+                lcwra: 217.26,
+                lcwraProtected: 429.80
+            }
         }
     };
 
@@ -842,9 +934,148 @@
     // What each rate is measured against: gross pay, or gross plus employer NI.
     function denomAt(x) { return onCostBasis() ? x + amountAt(ERNI, x) : x; }
 
-    // Take-home plus whatever childcare support survives at that income.
+    /* ============================================================
+          UNIVERSAL CREDIT
+          ------------------------------------------------------------
+          UC is the reason the bottom of this chart is not the gentle place
+          it looks. The award is reduced by 55p for every \u00a31 of NET
+          earnings above the work allowance -- net meaning after income tax
+          and National Insurance, so the taper compounds with them rather
+          than simply adding: a basic rate taxpayer keeps 72p of the next
+          pound and then loses 55% of that, for a combined 67.6%.
+
+          Everything DWP publishes is monthly; it is annualised here to sit
+          on this chart's axis, which assumes level earnings through the year.
+          Real UC is assessed monthly and does not average out.
+
+          Two things deliberately do NOT reduce the earnings the taper bites
+          on: student loan repayments (which is why a graduate on UC is worse
+          off than the arithmetic first suggests) and the childcare element,
+          which is not modelled at all -- see the notes.
+          ============================================================ */
+
+    function ucOn() { return state.uc !== "none"; }
+
+    function ucChildElements() {
+        var n = state.children;
+        if (!n) return 0;
+        var uc = Y.universalCredit;
+        if (uc.twoChildLimit) n = Math.min(n, 2);
+        // The first child attracts a higher rate only if born before 6 April
+        // 2017; every child is assumed born after it, so all are paid alike.
+        return uc.childFirst + uc.childOther * (n - 1);
+    }
+
+    function ucHealthElement() {
+        var uc = Y.universalCredit;
+        if (state.ucHealth === "protected") return uc.lcwraProtected;
+        return state.ucHealth === "standard" ? uc.lcwra : 0;
+    }
+
+    // The most the household can receive, before any earnings are counted.
+    function ucMaxAwardAnnual() {
+        if (!ucOn()) return 0;
+        var uc = Y.universalCredit;
+        return 12 * (uc.standardAllowance[state.uc]
+                     + ucChildElements() + ucHealthElement() + state.ucRent);
+    }
+
+    /* A work allowance is granted only to a household with a child or limited
+          capability for work; everyone else is tapered from the first pound. The
+          allowance is the lower of the two figures once housing costs are in the
+          award, on the grounds that the award is already covering the rent. */
+    function ucWorkAllowanceAnnual() {
+        if (!ucOn()) return 0;
+        if (state.children === 0 && state.ucHealth === "none") return 0;
+        var wa = Y.universalCredit.workAllowance;
+        return 12 * (state.ucRent > 0 ? wa.withHousing : wa.withoutHousing);
+    }
+
+    function netEarningsAt(x, regionId) {
+        return x - amountAt(IT[regionId], x) - amountAt(NI, x);
+    }
+
+    /* Net earnings rise strictly with gross, so the gross income producing a
+          given net figure is found by bisection. Used to place the two points
+          where the taper starts and where the award runs out. */
+    function grossForNet(target, regionId) {
+        if (!(target > 0)) return 0;
+        var lo = 0, hi = 1000;
+        while (netEarningsAt(hi, regionId) < target && hi < 1e9) hi *= 2;
+        for (var i = 0; i < 60; i++) {
+            var mid = (lo + hi) / 2;
+            if (netEarningsAt(mid, regionId) < target) lo = mid; else hi = mid;
+        }
+        return hi;
+    }
+
+    /* The taper as a marginal rate on GROSS pay, so it can join the other
+          band lists. Within any band where income tax and NI are flat the taper
+          is flat too, at 55% of whatever the employee actually keeps, so the
+          cuts are the tax and NI cuts plus the two ends of the taper itself. */
+    function ucBands(regionId) {
+        if (!ucOn()) {
+            return [{ upTo: Infinity, rate: 0, name: "Not claiming Universal Credit", short: "" }];
+        }
+        var taper = Y.universalCredit.taper;
+        var wa = ucWorkAllowanceAnnual();
+        var xStart = grossForNet(wa, regionId);
+        var xEnd = grossForNet(wa + ucMaxAwardAnnual() / (taper / 100), regionId);
+        var base = combineBands([IT[regionId], NI]);
+
+        var cuts = [], seen = {};
+        base.forEach(function (b) { if (!seen[b.upTo]) { seen[b.upTo] = 1; cuts.push(b.upTo); } });
+        [xStart, xEnd].forEach(function (c) {
+            if (c > 0 && !seen[c]) { seen[c] = 1; cuts.push(c); }
+        });
+        cuts.sort(function (a, b) { return a - b; });
+
+        var out = [], prev = 0;
+        cuts.forEach(function (upTo) {
+            var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 1000;
+            var rate = 0, name, short = "";
+            if (sample <= xStart) {
+                name = wa > 0 ? "Within the work allowance" : "No earnings yet";
+            } else if (sample >= xEnd) {
+                name = "Award fully tapered away";
+            } else {
+                rate = Math.round(taper * (1 - rateAt(base, sample) / 100) * 1000) / 1000;
+                name = "Universal Credit tapering";
+                short = "UC taper " + rate + "%";
+            }
+            out.push({ upTo: upTo, rate: rate, name: name, short: short });
+            prev = upTo;
+        });
+        return out;
+    }
+
+    // What is actually still in payment at that income.
+    function ucAwardAt(x, regionId) {
+        if (!ucOn()) return 0;
+        var maxAward = ucMaxAwardAnnual();
+        var over = Math.max(0, netEarningsAt(x, regionId) - ucWorkAllowanceAnnual());
+        return maxAward - Math.min(maxAward, over * Y.universalCredit.taper / 100);
+    }
+
+    // The gross salary at which the last penny of the award goes.
+    function ucExhaustedAt(regionId) {
+        if (!ucOn()) return null;
+        var taper = Y.universalCredit.taper;
+        return grossForNet(ucWorkAllowanceAnnual() + ucMaxAwardAnnual() / (taper / 100), regionId);
+    }
+
+    /* Everything the employee actually loses from the next pound. UC belongs
+          here because at the margin a withdrawn benefit is indistinguishable from
+          a tax; the award itself is added back separately in the money view. */
+    function employeeBands(regionId, hicbc, sl) {
+        return combineBands([IT[regionId], NI, hicbc, sl, ucBands(regionId)]);
+    }
+
+    /* Take-home, plus childcare support and whatever Universal Credit survives.
+          The withdrawal is already inside netBands, so adding the maximum award
+          back as a constant leaves exactly the award still in payment. */
     function netPositionAt(x, netBands, regionId) {
-        return x - amountAt(netBands, x) + childcareSupport(x, regionId);
+        return x - amountAt(netBands, x) + childcareSupport(x, regionId) + ucMaxAwardAnnual();
     }
 
     /* The salary at which someone is finally as well off as they were at
@@ -872,6 +1103,7 @@
         { id: "hicbc", label: "Child benefit charge",  cssVar: "--series-4" },
         { id: "erni",  label: "Employer NI",             cssVar: "--series-5" },
         { id: "sl",    label: "Student loan",            cssVar: "--series-6" },
+        { id: "uc",    label: "Universal Credit",       cssVar: "--series-7" },
         { id: "comb",  label: "Combined",              cssVar: "--series-3" }
     ];
 
@@ -884,13 +1116,16 @@
     var state = {
         year: DEFAULT_YEAR,
         regions: { ruk: true, sco: true },
-        measures: { it: false, ni: false, hicbc: false, erni: false, sl: false, comb: true },
+        measures: { it: false, ni: false, hicbc: false, erni: false, sl: false, uc: false, comb: true },
         slPlan: "none",
         slPgl: false,
         children: 0,
         ccUnder5: 0,
         cc511: 0,
         ccRate: 8,
+        uc: "none",          // "none", "single" or "couple"
+        ucRent: 0,           // monthly rent met by the housing element
+        ucHealth: "none",    // "none", "standard" or "protected"
         basis: "employee",
         view: "marginal",
         xMax: 200000
@@ -950,6 +1185,19 @@
                                   qual: studentLoanLabel(state.slPlan, state.slPgl),
                                   cssVar: "--series-6", dash: null, bands: shape(sl, false), raw: sl });
         }
+        /* The taper bites on what is left after income tax and NI, so a Scottish
+              claimant on the same salary keeps a different amount and is tapered at a
+              different rate. That makes UC a per-region line, like income tax. */
+        if (state.measures.uc && ucOn()) {
+            REGIONS.forEach(function (r) {
+                if (state.regions[r.id]) {
+                    var ub = ucBands(r.id);
+                    out.push({ id: "uc-" + r.id, name: "Universal Credit", qual: r.label,
+                                          cssVar: "--series-7", dash: r.dash,
+                                          bands: shape(ub, false), raw: ub });
+                }
+            });
+        }
         // Employer NI is only a coherent series on the cost basis: on the employee
         // basis it is absent from the combined line, so showing it would break the
         // rule that the component lines add up to the combined one.
@@ -962,12 +1210,13 @@
                 if (state.regions[r.id]) {
                     // What actually leaves the employee's pay, and -- on the cost basis --
                     // the wider total that also counts the employer's contribution.
-                    var employeeDed = combineBands([IT[r.id], NI, hicbc, sl]);
+                    var employeeDed = employeeBands(r.id, hicbc, sl);
                     var numerator = onCostBasis()
-                        ? combineBands([IT[r.id], NI, hicbc, sl, ERNI]) : employeeDed;
+                        ? combineBands([IT[r.id], NI, hicbc, sl, ucBands(r.id), ERNI]) : employeeDed;
                     out.push({ id: "comb-" + r.id, regionId: r.id,
                                           name: !isMoneyView() ? "Combined"
-                                                  : (hasChildcare() ? "Net position" : "Take-home pay"), qual: r.label,
+                                                  : (hasChildcare() || ucOn() ? "Net position" : "Take-home pay"),
+                                          qual: r.label,
                                           cssVar: "--series-3", dash: r.dash, agg: true,
                                           bands: shape(employeeDed, true),
                                           raw: numerator, netRaw: employeeDed });
@@ -1292,6 +1541,10 @@
                 ? "The aggregate line is take-home pay plus childcare support, so the drop at "
                     + gbp(Y.childcare.cliff) + " is the support withdrawn in full; the shaded span is where a "
                     + "higher salary still leaves you worse off."
+                : ucOn()
+                ? "The aggregate line is take-home pay plus whatever Universal Credit is still in "
+                    + "payment, so it starts at the full award of " + gbp(ucMaxAwardAnnual())
+                    + " and then climbs far more slowly than gross pay does."
                 : "Take-home pay is gross pay less income tax, National Insurance and any "
                     + "student loan or child benefit charge; the other lines are the amounts taken.");
             if (hasChildcare()) {
@@ -1301,6 +1554,17 @@
         } else if (state.view === "effective") {
             parts.push("Effective rate is the tax charged up to that income divided by the income "
                 + "itself, so it always sits below the marginal rate.");
+        }
+        if (ucOn()) {
+            parts.push("Universal Credit is withdrawn at " + Y.universalCredit.taper
+                + "% of net earnings above the work allowance, so it compounds with tax and "
+                + "NI rather than adding to them \u2014 the taper takes "
+                + Y.universalCredit.taper + "% of whatever the employee was left with.");
+            if (hasChildcare()) {
+                parts.push("Tax-Free Childcare cannot be claimed alongside Universal Credit, so "
+                    + "the childcare support drawn here is not available to this household; the "
+                    + "UC childcare element that replaces it is not modelled.");
+            }
         }
         if (onCostBasis()) {
             parts.push("Rates are shares of total employment cost: an extra \u00a31 of salary costs "
@@ -1359,24 +1623,97 @@
             + Y.childBenefit.weeks + " weeks");
         row("Child benefit charge", "from " + gbp(Y.hicbc.start) + ", fully withdrawn at "
             + gbp(Y.hicbc.end));
-        row("Childcare cliff", "all support lost above " + gbp(Y.childcare.cliff)
+        var uc = Y.universalCredit;
+        row("Universal Credit taper", uc.taper + "% of net earnings above the work allowance");
+        row("UC standard allowance", gbpPence(uc.standardAllowance.single) + " a month single, "
+            + gbpPence(uc.standardAllowance.couple) + " a couple");
+        row("UC work allowance", gbp(uc.workAllowance.withHousing) + " a month with a housing "
+            + "element, " + gbp(uc.workAllowance.withoutHousing) + " without; nil unless the "
+            + "household has a child or limited capability for work");
+        row("UC child element", gbpPence(uc.childOther) + " a month per child"
+            + (uc.twoChildLimit ? ", limited to two children" : ", with no two-child limit"));
+        row("UC health element", gbpPence(uc.lcwra) + " a month"
+            + (uc.lcwraProtected !== uc.lcwra
+                ? ", or " + gbpPence(uc.lcwraProtected) + " at the protected rate" : ""));
+                row("Childcare cliff", "all support lost above " + gbp(Y.childcare.cliff)
             + "; Tax-Free Childcare " + gbp(Y.childcare.tfcPerChild) + " per child; "
             + Y.childcare.fundedHours.toLocaleString("en-GB") + " funded hours a year");
         host.appendChild(dl);
     }
 
+    function statGroup(title, pairs, note) {
+        var g = document.createElement("div");
+        g.className = "stat-group";
+        var h = document.createElement("h3");
+        h.textContent = title;
+        g.appendChild(h);
+        var row = div("stat-row");
+        pairs.forEach(function (pair) {
+            var cell = document.createElement("div");
+            var lab = document.createElement("span");
+            lab.className = "stat-label";
+            lab.textContent = pair[0];
+            cell.appendChild(lab);
+            cell.appendChild(div("stat-value", pair[1]));
+            row.appendChild(cell);
+        });
+        g.appendChild(row);
+        if (note) g.appendChild(div("stat-note", note));
+        return g;
+    }
+
+    /* The worst combined rate anywhere the award is still in payment -- the
+          number that makes the case, and one the eye cannot read off a step chart. */
+    function ucPeakRate(netBands, end) {
+        var prev = 0, peak = 0;
+        for (var i = 0; i < netBands.length; i++) {
+            if (Math.min(netBands[i].upTo, end) > prev && netBands[i].rate > peak) {
+                peak = netBands[i].rate;
+            }
+            prev = netBands[i].upTo;
+            if (prev >= end) break;
+        }
+        return peak;
+    }
+
     function renderStats() {
         while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+
+        var ucHicbc = hicbcBands(state.children);
+        var ucSl = studentLoanBands(state.slPlan, state.slPgl);
+        if (ucOn()) {
+            REGIONS.forEach(function (r) {
+                if (!state.regions[r.id]) return;
+                var end = ucExhaustedAt(r.id);
+                // Follow whichever denominator the chart is using, or the tile would
+                // quote a rate that appears nowhere on it.
+                var peakBands = employeeBands(r.id, ucHicbc, ucSl);
+                var peak = ucPeakRate(onCostBasis() ? toCostBasis(peakBands, true) : peakBands, end);
+                var wa = ucWorkAllowanceAnnual();
+                statsEl.appendChild(statGroup("Universal Credit \u00b7 " + r.label,
+                    [["Maximum award", gbp(ucMaxAwardAnnual()) + " a year"],
+                     ["Taper starts at", wa > 0 ? gbp(grossForNet(wa, r.id)) : "the first pound"],
+                     ["Award gone at", gbp(end)],
+                     [onCostBasis() ? "Peak combined wedge" : "Peak combined rate", pct(peak)]],
+                    wa > 0
+                        ? "The work allowance is a monthly figure on net earnings, so the salary "
+                            + "it corresponds to depends on the tax and NI underneath it."
+                        : "No work allowance: it is granted only to a household with a child or "
+                            + "limited capability for work, so earnings are tapered from the first "
+                            + "pound."));
+            });
+        }
+
         if (!hasChildcare()) return;
 
-        var hicbc = hicbcBands(state.children);
-        var sl = studentLoanBands(state.slPlan, state.slPgl);
+        var hicbc = ucHicbc;
+        var sl = ucSl;
 
         REGIONS.forEach(function (r) {
             if (!state.regions[r.id]) return;
             var lost = childcareSupport(Y.childcare.cliff, r.id);
             if (!(lost > 0)) return;
-            var netBands = combineBands([IT[r.id], NI, hicbc, sl]);
+            var netBands = employeeBands(r.id, hicbc, sl);
             var be = breakEvenAt(netBands, r.id);
 
             var g = document.createElement("div");
@@ -1665,6 +2002,49 @@
         }
     }
 
+    // Nothing to plot until a claim is being made.
+    function syncUcChip() {
+        var chip = chipById.uc, off = !ucOn();
+        chip.disabled = off;
+        chip.title = off ? "Choose a Universal Credit claim to plot the taper" : "";
+        if (off && state.measures.uc) {
+            state.measures.uc = false;
+            chip.setAttribute("aria-checked", "false");
+        }
+    }
+
+    // The housing element only exists alongside rent, and it lowers the work
+    // allowance, so the two controls are only meaningful once a claim is on.
+    function syncUcControls() {
+        ["uc-rent", "uc-health"].forEach(function (id) {
+            var sel = document.getElementById(id);
+            sel.disabled = !ucOn();
+            sel.title = sel.disabled ? "Choose a Universal Credit claim first" : "";
+        });
+    }
+
+    document.getElementById("uc-sel").addEventListener("change", function (e) {
+        state.uc = e.target.value;
+        // Turning a claim on is the point of choosing one.
+        if (ucOn() && !state.measures.uc && !state.measures.comb) {
+            state.measures.uc = true;
+            chipById.uc.setAttribute("aria-checked", "true");
+        }
+        syncUcChip();
+        syncUcControls();
+        syncCombinedLabel();
+        hoverX = null;
+        render();
+    });
+
+    [["uc-rent", "ucRent"], ["uc-health", "ucHealth"]].forEach(function (pair) {
+        document.getElementById(pair[0]).addEventListener("change", function (e) {
+            state[pair[1]] = pair[1] === "ucRent" ? Number(e.target.value) : e.target.value;
+            hoverX = null;
+            render();
+        });
+    });
+
     document.getElementById("sl-sel").addEventListener("change", function (e) {
         var v = e.target.value, head = v.split("+")[0];
         state.slPlan = (head === "none" || head === "pgl") ? "none" : head;
@@ -1687,13 +2067,14 @@
             chipById.hicbc.setAttribute("aria-checked", "true");
         }
         syncHicbcChip();
+        hoverX = null;
         render();
     });
 
     // In the take-home view the aggregate line is what is left, not what is taken.
     function syncCombinedLabel() {
         chipById.comb.__labelNode.nodeValue = !isMoneyView() ? "Combined"
-            : (hasChildcare() ? "Net position" : "Take-home pay");
+            : (hasChildcare() || ucOn() ? "Net position" : "Take-home pay");
     }
 
     document.getElementById("year-sel").addEventListener("change", function (e) {
@@ -1806,7 +2187,11 @@
                                   ["ruk", 100000, 68557.40], ["sco", 100000, 65225.60]],
             marginal: [["ruk", 110000, 60], ["sco", 110000, 67.5], ["sco", 45000, 42]],
             studentLoan: [["p2", 40000, 1037.70]],
-            childBenefit: [[1, 1354.60], [2, 2251.60]]
+            childBenefit: [[1, 1354.60], [2, 2251.60]],
+            // [claim, children, monthly rent, health, annual maximum award]
+            ucMaxAward: [["single", 0, 0, "none", 4801.68],
+                         ["single", 3, 0, "none", 11829.12],   // two-child limit applies
+                         ["couple", 0, 0, "none", 7537.20]]
         },
         "2026-27": {
             incomeTax: [["ruk", 60000, 11432], ["sco", 60000, 13182.05]],
@@ -1814,7 +2199,21 @@
             takeHome: [["ruk", 60000, 45357.40], ["sco", 60000, 43607.35]],
             marginal: [["ruk", 110000, 60], ["sco", 110000, 67.5]],
             studentLoan: [["p2", 40000, 955.35], ["p5", 40000, 1350]],
-            childBenefit: [[1, 1406.60], [2, 2337.40]]
+            childBenefit: [[1, 1406.60], [2, 2337.40]],
+            ucMaxAward: [["single", 0, 0, "none", 5098.80],
+                         ["single", 3, 0, "none", 16040.64],   // no two-child limit from April 2026
+                         ["single", 2, 600, "none", 19593.36],
+                         ["single", 0, 0, "standard", 7705.92]],
+            // [claim, children, rent, health, region, gross salary, award still in payment]
+            ucAward: [["single", 0, 0, "none", "ruk", 5000, 2348.80],
+                      ["single", 2, 600, "none", "ruk", 20000, 12555.78]],
+            // [claim, children, rent, health, region, salary, UC taper rate, combined rate]
+            ucMarginal: [["single", 2, 600, "none", "ruk", 20000, 39.6, 67.6],
+                         ["single", 2, 0, "none", "ruk", 14000, 39.6, 67.6],
+                         ["single", 2, 0, "none", "sco", 14000, 40.15, 67.15],
+                         ["single", 2, 0, "none", "ruk", 8000, 0, 0]],
+            // [claim, children, rent, health, region, salary the award runs out at]
+            ucExhausted: [["single", 2, 0, "none", "ruk", 38241.36]]
         }
     };
 
@@ -1970,6 +2369,105 @@
                 });
             }
 
+            /* -- Universal Credit ------------------------------------------- */
+            var ucSaved = { uc: state.uc, rent: state.ucRent,
+                            health: state.ucHealth, children: state.children };
+            function setUc(claim, children, rent, health) {
+                state.uc = claim; state.children = children;
+                state.ucRent = rent; state.ucHealth = health;
+            }
+
+            (pin && pin.ucMaxAward || []).forEach(function (t) {
+                setUc(t[0], t[1], t[2], t[3]);
+                check(tag + "UC max award " + t.slice(0, 4).join("/"),
+                      near(ucMaxAwardAnnual(), t[4], 0.01),
+                      ucMaxAwardAnnual().toFixed(2) + " vs " + t[4]);
+            });
+            (pin && pin.ucAward || []).forEach(function (t) {
+                setUc(t[0], t[1], t[2], t[3]);
+                var got = ucAwardAt(t[5], t[4]);
+                check(tag + "UC award " + t.slice(0, 5).join("/") + " at " + t[5],
+                      near(got, t[6], 0.01), got.toFixed(2) + " vs " + t[6]);
+            });
+            (pin && pin.ucMarginal || []).forEach(function (t) {
+                setUc(t[0], t[1], t[2], t[3]);
+                var ucRate = rateAt(ucBands(t[4]), t[5]);
+                var comb = rateAt(employeeBands(t[4], hicbcBands(0),
+                                                studentLoanBands("none", false)), t[5]);
+                check(tag + "UC taper rate " + t.slice(0, 5).join("/") + " at " + t[5],
+                      near(ucRate, t[6], 0.001), ucRate + " vs " + t[6]);
+                check(tag + "UC combined rate " + t.slice(0, 5).join("/") + " at " + t[5],
+                      near(comb, t[7], 0.001), comb + " vs " + t[7]);
+            });
+            (pin && pin.ucExhausted || []).forEach(function (t) {
+                setUc(t[0], t[1], t[2], t[3]);
+                var got = ucExhaustedAt(t[4]);
+                check(tag + "UC runs out " + t.slice(0, 5).join("/"),
+                      near(got, t[5], 1), got.toFixed(2) + " vs " + t[5]);
+            });
+
+            /* The band list the chart draws must integrate back to the award
+                  the engine says is still in payment -- picture and arithmetic
+                  agreeing, at every kind of household. */
+            [["single", 0, 0, "none"], ["single", 2, 600, "none"],
+             ["single", 3, 0, "none"], ["couple", 1, 400, "standard"]].forEach(function (h) {
+                setUc(h[0], h[1], h[2], h[3]);
+                var maxAward = ucMaxAwardAnnual();
+                ["ruk", "sco"].forEach(function (rg) {
+                    var ub = ucBands(rg), end = ucExhaustedAt(rg);
+                    var label = tag + "UC " + h.join("/") + " " + rg;
+                    var prevAward = maxAward + 1, mono = true, inRange = true;
+                    [0, 2000, 6000, 12570, 20000, 30000, 45000, 60000, 90000].forEach(function (x) {
+                        var award = ucAwardAt(x, rg);
+                        if (award > prevAward + 0.005) mono = false;
+                        if (award < -0.005 || award > maxAward + 0.005) inRange = false;
+                        prevAward = award;
+                        check(label + " bands integrate to the withdrawal at " + x,
+                              near(amountAt(ub, x), maxAward - award, 0.02),
+                              amountAt(ub, x).toFixed(2) + " vs " + (maxAward - award).toFixed(2));
+                    });
+                    check(label + " award never rises with pay", mono);
+                    check(label + " award stays within its bounds", inRange);
+                    check(label + " award is spent at the exhaustion point",
+                          near(ucAwardAt(end, rg), 0, 0.01) && near(ucAwardAt(end * 2 + 1, rg), 0, 0.01));
+                    /* The taper takes 55% of what the employee was actually left
+                          with, so it must equal 55% of one minus the tax and NI rate. */
+                    var base = combineBands([IT[rg], NI]);
+                    [15000, 25000, 35000].forEach(function (x) {
+                        if (x >= end) return;
+                        check(label + " taper compounds with tax at " + x,
+                              near(rateAt(ub, x),
+                                   Y.universalCredit.taper * (1 - rateAt(base, x) / 100), 0.001));
+                    });
+                });
+            });
+
+            setUc("single", 0, 0, "none");
+            check(tag + "no work allowance without a child or health element",
+                  ucWorkAllowanceAnnual() === 0);
+            setUc("single", 1, 0, "none");
+            check(tag + "a child brings the work allowance",
+                  ucWorkAllowanceAnnual() === 12 * Y.universalCredit.workAllowance.withoutHousing);
+            setUc("single", 1, 500, "none");
+            check(tag + "rent lowers the work allowance",
+                  ucWorkAllowanceAnnual() === 12 * Y.universalCredit.workAllowance.withHousing);
+            setUc("none", 0, 0, "none");
+            check(tag + "no claim means no award and no taper",
+                  ucMaxAwardAnnual() === 0 && rateAt(ucBands("ruk"), 20000) === 0);
+
+            // The two-child limit is year data, so it must actually bite in the
+            // year that has it and not in the year that does not.
+            setUc("single", 2, 0, "none");
+            var twoKids = ucMaxAwardAnnual();
+            setUc("single", 3, 0, "none");
+            check(tag + "two-child limit " + (Y.universalCredit.twoChildLimit ? "applies" : "is gone"),
+                  Y.universalCredit.twoChildLimit
+                      ? near(ucMaxAwardAnnual(), twoKids, 0.01)
+                      : ucMaxAwardAnnual() > twoKids + 100);
+
+            state.uc = ucSaved.uc; state.ucRent = ucSaved.rent;
+            state.ucHealth = ucSaved.health; state.children = ucSaved.children;
+
             /* -- the break-even solver actually finds the level point ------- */
             state.ccUnder5 = 1; state.cc511 = 0;
             ["ruk", "sco"].forEach(function (rg) {
@@ -2021,6 +2519,8 @@
     syncHicbcChip();
     syncErniChip();
     syncSlChip();
+    syncUcChip();
+    syncUcControls();
     syncCombinedLabel();
     syncCcRate();
     render();
