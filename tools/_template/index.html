@@ -3,13 +3,110 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tool Name — Hash Brown Engineering</title>
+    <title>Tool Name &mdash; Hash Brown Engineering</title>
     <meta name="description" content="One sentence describing what this tool does.">
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/style.css">
     <style>
-        /* Anything specific to this tool goes here. The shared stylesheet
-           already covers layout, type, form controls and dark mode. */
+        /* ------------------------------------------------------------------
+              Anything specific to this tool goes here. The shared stylesheet
+              already covers layout, type, form controls, focus styles and dark
+              mode, so use its tokens -- var(--ink), var(--accent), var(--rule),
+              var(--surface), var(--ink-muted), var(--ink-faint) -- rather than
+              hard-coded colours, or the page breaks in dark mode.
+
+              What follows is the chrome every tool here has ended up needing:
+              a settings strip, a table, stat tiles, and the assumptions panel.
+              Delete what you do not use.
+              ------------------------------------------------------------------ */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        /* Controls. Wrap them: a row of selects that does not wrap runs off the
+              side of a phone and takes the whole document with it. */
+        .settings {
+            display: flex; flex-wrap: wrap; gap: 0.9rem 1.4rem;
+            align-items: flex-end; margin-block-start: 1.5rem;
+        }
+        .settings .field { margin-block-end: 0; }
+        .settings label {
+            font-size: 0.7rem; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--ink-faint); margin-block-end: 0.35rem; display: block;
+        }
+        .settings select, .settings input { width: auto; font-size: 0.85rem; padding: 0.4rem 0.6rem; }
+
+        /* Stat tiles: the headline numbers for whatever is selected. */
+        .stats { display: flex; flex-wrap: wrap; gap: 0.9rem; margin-block-start: 1.5rem; }
+        .stats:empty { display: none; }
+        .stat-group {
+            flex: 1 1 20rem; background: var(--surface); border: 1px solid var(--rule);
+            border-radius: 0.75rem; padding: 0.85rem 1rem 0.95rem;
+        }
+        .stat-group h3 {
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--ink-faint); margin: 0 0 0.6rem;
+        }
+        .stat-row { display: flex; flex-wrap: wrap; gap: 1rem 1.6rem; }
+        .stat-label { display: block; font-size: 0.72rem; color: var(--ink-muted); margin-block-end: 0.1rem; }
+        .stat-value { font-size: 1.3rem; font-weight: 600; color: var(--ink); line-height: 1.15; }
+        .stat-note { font-size: 0.72rem; color: var(--ink-faint); margin-block-start: 0.6rem; }
+
+        /* Tables. Always inside .tbl-scroll: a wide table must scroll in its own
+              box rather than making the page scroll sideways. */
+        section.block { margin-block-start: 2.25rem; }
+        section.block h2 {
+            font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400;
+            color: var(--ink); margin: 0 0 0.15rem;
+        }
+        .block-note { color: var(--ink-faint); font-size: 0.85rem; margin: 0 0 0.85rem; }
+        .tbl-scroll { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+        th, td { text-align: right; padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+        th:first-child, td:first-child { text-align: left; }
+        thead th {
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em;
+            color: var(--ink-muted); text-transform: uppercase;
+        }
+        tbody td { font-variant-numeric: tabular-nums; color: var(--ink); }
+        tbody td:first-child { color: var(--ink-muted); }
+        tbody tr.is-current td { font-weight: 600; background: var(--accent-soft); }
+
+        /* The assumptions panel. Every tool here has one; see the notes below. */
+        details.notes { margin-block-start: 2rem; }
+        details.notes > summary {
+            cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--ink-muted);
+            padding: 0.35rem 0; list-style: revert;
+        }
+        details.notes ul { margin: 0.4rem 0 0; padding-left: 1.25rem; color: var(--ink-muted); font-size: 0.85rem; }
+        details.notes li { margin-bottom: 0.4rem; }
+        .figures { margin: 0.6rem 0 0.25rem; }
+        .figures h4 {
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--ink-faint); margin: 0 0 0.5rem;
+        }
+        .figures dl {
+            display: grid; grid-template-columns: minmax(10rem, auto) 1fr; gap: 0.25rem 1rem;
+            margin: 0 0 0.75rem; font-size: 0.8rem;
+        }
+        .figures dt { color: var(--ink-muted); }
+        .figures dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+        .selfcheck { font-size: 0.78rem; margin: 0.75rem 0 0; font-variant-numeric: tabular-nums; }
+        .selfcheck.ok { color: #0ca30c; }
+        .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+
+        .disclaimer {
+            margin-block-start: 2.25rem; font-size: 0.85rem; color: var(--ink-faint); text-wrap: pretty;
+        }
+
+        /* A tool with a chart wants more than the site's 44rem reading measure.
+              Add class="page page-wide" to the wrapper and uncomment this.
+        .page-wide { max-width: 68rem; }
+        .page-wide .tool-header, .page-wide .tool-nav { max-width: var(--measure); }
+        .page-wide details.notes { max-width: var(--measure); }
+        */
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+        }
     </style>
 </head>
 <body>
@@ -19,11 +116,59 @@
 
     <header class="tool-header">
         <h1>Tool Name</h1>
-        <p class="lede">One or two sentences on what this does and why.</p>
+        <p class="lede">One or two sentences on what this does and why. If the tool
+            makes a point that a table alone would not, say it here.</p>
     </header>
 
     <main>
-        <!-- The tool itself. -->
+        <div class="settings">
+            <div class="field">
+                <label for="item-sel">Item</label>
+                <select id="item-sel"></select>
+            </div>
+            <div class="field">
+                <label for="factor-sel">Factor</label>
+                <select id="factor-sel">
+                    <option value="1" selected>&times;1</option>
+                    <option value="2">&times;2</option>
+                    <option value="10">&times;10</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <section class="block">
+            <h2>Everything at once</h2>
+            <p class="block-note" id="table-note"></p>
+            <div class="tbl-scroll">
+                <table id="table"></table>
+            </div>
+        </section>
+
+        <details class="notes">
+            <summary>Assumptions &amp; sources</summary>
+            <div class="figures" id="figures"></div>
+            <ul>
+                <li><strong>Say where the numbers came from.</strong> Name the standard,
+                    the publication or the library, and say whether they were checked
+                    against it or merely copied from it.</li>
+                <li><strong>Say what is assumed.</strong> Every tool here has at least one
+                    figure that is a choice rather than a constant &mdash; a reference
+                    condition, a density, an atmosphere. State it, and make it selectable
+                    if a reasonable person would choose differently.</li>
+                <li><strong>Say what is not modelled.</strong> This is the most useful
+                    section and the easiest to skip. A reader who knows what the tool
+                    ignores can decide whether to trust it.</li>
+                <li><strong>Say what would surprise someone.</strong> If two things that
+                    look identical are not, or two standards round the same dimension
+                    differently, that belongs here.</li>
+            </ul>
+            <p class="selfcheck" id="selfcheck"></p>
+        </details>
+
+        <p class="disclaimer">A reference tool, not a design document. Check the
+            assumptions above against whatever actually governs your work.</p>
     </main>
 
     <footer class="site-footer">
@@ -33,11 +178,243 @@
 
 </div>
 
+<!-- A tax tool also loads the shared rates and primitives. Delete if not needed.
+<script src="/assets/uk-tax.js"></script>
+-->
 <script>
 (function () {
     "use strict";
-    // Tool logic. Keep it dependency-free where reasonable — the site is
-    // plain static files on GitHub Pages, with no build step.
+
+    /* ============================================================
+          THE PATTERN
+          ------------------------------------------------------------
+          Every tool on this site is built the same way, and it is worth
+          keeping to because it is what makes them trustworthy:
+
+            1. REFERENCE DATA in one block, with its source noted.
+            2. A DERIVED ENGINE. Nothing is stored that can be computed,
+               so a label can never disagree with the number beside it.
+            3. RENDERING that reads only from the engine.
+            4. SELF-CHECKS that run on load and report into the
+               assumptions panel above.
+
+          The self-checks are the part that matters. These pages are
+          mostly constants, which is exactly the kind of thing that looks
+          right when it is wrong. Pin figures you worked out by hand
+          BEFORE writing the code, so they test it rather than restate it.
+          Assert the relationships too: round trips, monotonicity, things
+          that must be equal, things that must NOT be equal.
+
+          A failing check is loud and visible on the page. That is
+          deliberate: better a red line than a plausible wrong answer.
+          ============================================================ */
+
+    /* ------------------------------------------------------------
+          1. REFERENCE DATA
+          Replace this. Note the source in a comment beside it, and keep
+          only what cannot be derived -- everything else belongs in the
+          engine below.
+          ------------------------------------------------------------ */
+    var SOURCE = "Where these numbers came from";
+
+    var REFERENCE = [
+        { name: "Example A", base: 10 },
+        { name: "Example B", base: 25 },
+        { name: "Example C", base: 60 }
+    ];
+
+    var state = { item: "Example A", factor: 1 };
+
+    /* ------------------------------------------------------------
+          2. ENGINE -- everything derived from the data above
+          ------------------------------------------------------------ */
+
+    function itemByName(name) {
+        for (var i = 0; i < REFERENCE.length; i++) {
+            if (REFERENCE[i].name === name) return REFERENCE[i];
+        }
+        return null;
+    }
+
+    function derive(item, factor) {
+        var scaled = item.base * factor;
+        return { base: item.base, factor: factor, scaled: scaled, half: scaled / 2 };
+    }
+
+    function num(v, dp) {
+        return v.toLocaleString("en-GB", { minimumFractionDigits: dp === undefined ? 0 : dp,
+                                           maximumFractionDigits: dp === undefined ? 2 : dp });
+    }
+
+    /* ------------------------------------------------------------
+          3. RENDER
+          ------------------------------------------------------------ */
+
+    var statsEl = document.getElementById("stats");
+    var tableEl = document.getElementById("table");
+    var noteEl  = document.getElementById("table-note");
+
+    function render() {
+        var item = itemByName(state.item);
+        var d = derive(item, state.factor);
+
+        statsEl.innerHTML = "";
+        var g = document.createElement("div");
+        g.className = "stat-group";
+        var h = document.createElement("h3");
+        h.textContent = item.name + " · ×" + state.factor;
+        g.appendChild(h);
+        var row = document.createElement("div");
+        row.className = "stat-row";
+        [["Base", num(d.base)], ["Scaled", num(d.scaled)], ["Half", num(d.half, 1)]]
+            .forEach(function (pair) {
+                var cell = document.createElement("div");
+                var lab = document.createElement("span");
+                lab.className = "stat-label";
+                lab.textContent = pair[0];
+                var val = document.createElement("div");
+                val.className = "stat-value";
+                val.textContent = pair[1];
+                cell.appendChild(lab); cell.appendChild(val);
+                row.appendChild(cell);
+            });
+        g.appendChild(row);
+        statsEl.appendChild(g);
+
+        noteEl.textContent = "Every item at the selected factor of ×" + state.factor + ".";
+        tableEl.innerHTML = "";
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        ["Item", "Base", "Scaled", "Half"].forEach(function (label) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = label;
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        REFERENCE.forEach(function (r) {
+            var v = derive(r, state.factor);
+            var tr = document.createElement("tr");
+            if (r.name === state.item) tr.className = "is-current";
+            [r.name, num(v.base), num(v.scaled), num(v.half, 1)].forEach(function (text) {
+                var td = document.createElement("td");
+                td.textContent = text;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        tableEl.appendChild(tbody);
+
+        renderFigures();
+    }
+
+    /* Read straight out of the data, so the panel can never drift from what
+          the tool is actually computing. */
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        host.innerHTML = "";
+        var h = document.createElement("h4");
+        h.textContent = "Figures behind this tool";
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        row("Source", SOURCE);
+        row("Items covered", String(REFERENCE.length));
+        row("Derivation", "scaled = base × factor; half = scaled ÷ 2");
+        host.appendChild(dl);
+    }
+
+    /* ------------------------------------------------------------
+          4. CONTROLS
+          ------------------------------------------------------------ */
+
+    var itemSel = document.getElementById("item-sel");
+    REFERENCE.forEach(function (r) {
+        var o = document.createElement("option");
+        o.value = r.name;
+        o.textContent = r.name;
+        itemSel.appendChild(o);
+    });
+    itemSel.value = state.item;
+
+    itemSel.addEventListener("change", function (e) { state.item = e.target.value; render(); });
+    document.getElementById("factor-sel").addEventListener("change", function (e) {
+        state.factor = Number(e.target.value);
+        render();
+    });
+
+    /* ------------------------------------------------------------
+          5. SELF-CHECKS
+          Replace these with checks that mean something for your data.
+          The three kinds worth having:
+            - STRUCTURE: the data is the shape the engine assumes.
+            - RELATIONSHIPS: round trips, monotonicity, identities,
+              and things that must NOT be equal.
+            - PINNED FIGURES: values worked out by hand from the source.
+          If a tax tool, UKTax.checker() gives you this harness for free.
+          ------------------------------------------------------------ */
+
+    // [item, factor, expected scaled value] -- worked out by hand, not copied.
+    var PINNED = [["Example A", 1, 10], ["Example B", 2, 50], ["Example C", 10, 600]];
+
+    function runSelfChecks() {
+        var results = [], failures = [];
+        function check(name, ok, detail) {
+            results.push(!!ok);
+            if (!ok) failures.push(name + (detail ? " — " + detail : ""));
+        }
+
+        // structure
+        var seen = {};
+        REFERENCE.forEach(function (r) {
+            check("«" + r.name + "» has a name", typeof r.name === "string" && r.name.length > 0);
+            check("«" + r.name + "» appears once", !seen[r.name]);
+            seen[r.name] = true;
+            check("«" + r.name + "» has a positive base", r.base > 0 && isFinite(r.base));
+        });
+
+        // relationships
+        REFERENCE.forEach(function (r) {
+            [1, 2, 10].forEach(function (f) {
+                var d = derive(r, f);
+                check(r.name + " ×" + f + ": half is half of scaled", d.half * 2 === d.scaled);
+                check(r.name + " ×" + f + ": scaling is monotonic",
+                      derive(r, f + 1).scaled > d.scaled);
+            });
+        });
+
+        // pinned figures
+        PINNED.forEach(function (t) {
+            var item = itemByName(t[0]);
+            var got = item && derive(item, t[1]).scaled;
+            check("pinned " + t[0] + " ×" + t[1], got === t[2],
+                  got === null ? "item missing" : String(got));
+        });
+
+        var passed = results.filter(Boolean).length;
+        var out = document.getElementById("selfcheck");
+        if (failures.length) {
+            out.className = "selfcheck bad";
+            out.textContent = "✖ " + failures.length + " of " + results.length
+                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
+                + (failures.length > 6 ? "; …" : "");
+            if (window.console) console.error("Self-checks failed:", failures);
+        } else {
+            out.className = "selfcheck ok";
+            out.textContent = "✓ " + passed + " self-checks passed across "
+                + REFERENCE.length + " items.";
+        }
+        window.__selfChecks = { passed: passed, total: results.length, failures: failures };
+    }
+
+    render();
+    runSelfChecks();
 })();
 </script>
 </body>

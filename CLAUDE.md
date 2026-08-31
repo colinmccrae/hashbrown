@@ -41,6 +41,7 @@ Treat the tools as a hobby playground, but keep the front page presentable.
 ├── sitemap.xml             Add a <url> entry per new tool
 ├── assets/
 │   ├── style.css           Shared stylesheet for every page
+│   ├── uk-tax.js           Shared UK tax rates and band arithmetic
 │   └── favicon.svg
 └── tools/
     ├── _template/          Starter page — copy this for a new tool
@@ -53,9 +54,11 @@ Four steps. Do all four — a tool that is not linked from `index.html` is
 invisible.
 
 1. **Create the directory.** `tools/<kebab-case-name>/index.html`. Start from
-   `tools/_template/index.html`. Self-contained is fine: put the tool's own CSS
-   in a `<style>` block and its JS in a `<script>` block in that one file. Only
-   split files out if the tool actually gets large.
+   `tools/_template/index.html`, which is a working page rather than a skeleton:
+   copy it, open it, and it renders and passes its own self-checks. Replace the
+   reference data and the checks with yours. Self-contained is fine: put the
+   tool's own CSS in a `<style>` block and its JS in a `<script>` block in that
+   one file. Only split files out if the tool actually gets large.
 
 2. **Link the shared stylesheet** with `/assets/style.css` and keep the
    `.tool-nav` back-link, the `.page` wrapper and the footer. That is what makes
@@ -78,6 +81,51 @@ invisible.
    ```
 
 4. **Add a `<url>` entry to `sitemap.xml`.**
+
+## How the tools are built
+
+The template encodes a pattern the existing tools all follow, and it is worth
+keeping to:
+
+1. **Reference data in one block**, with its source noted beside it.
+2. **A derived engine** — nothing stored that can be computed, so a label can
+   never disagree with the number next to it.
+3. **Rendering that reads only from the engine.**
+4. **Self-checks that run on load** and report into an "Assumptions & sources"
+   panel at the foot of the page.
+
+The self-checks are the part that matters. These pages are mostly constants,
+which is exactly the kind of thing that looks right when it is wrong. Pin
+figures worked out by hand *before* writing the code, so they test it rather
+than restate it, and assert the relationships too — round trips, monotonicity,
+things that must be equal and things that must not be. A failure is rendered
+loudly on the page in red, which is better than a plausible wrong answer.
+
+Each tool also states, in that same panel, what it assumes and what it does
+**not** model. That section is the most useful one and the easiest to skip.
+
+## The shared tax module
+
+`/assets/uk-tax.js` holds the UK rate data and the band arithmetic, shared by
+the tax tools. It defines one global, `UKTax`; load it with a plain
+`<script src="/assets/uk-tax.js">` before the tool's own script.
+
+- **Rates live there and nowhere else**, so a Budget is one edit in one file.
+  Add a tax year to `YEARS`, add its id to `YEAR_ORDER`, then extend the pinned
+  figures in each tool that uses the block you changed.
+- **Income tax bands are held in taxable-income space**, which is how the
+  statute defines them. The familiar gross figures are derived by
+  `nonSavingsGross()`. Do not go the other way: adding the allowance back is
+  only correct below the taper, and getting it backwards once printed the
+  additional rate threshold as £137,710.
+- **`ladder()` builds a progressive slice ladder** — the shape of SDLT, LBTT and
+  LTT — and `amountAt()` / `rateAt()` then give tax due and marginal rate for
+  free. A stamp duty tool needs no income tax machinery at all.
+- **`checker()` is the self-check harness** and `pct(rate, decimalPlaces)` takes
+  its precision explicitly, because the tools disagree about it.
+
+Anything specific to one tool stays with that tool. The test for putting
+something in the shared file is whether a second tool would want it.
 
 ## Conventions
 

@@ -489,6 +489,7 @@
 
 </div>
 
+<script src="/assets/uk-tax.js"></script>
 <script>
 (function () {
     "use strict";
@@ -496,93 +497,24 @@
     /* ============================================================
           TAX YEAR DATA
           ------------------------------------------------------------
-          Everything that changes from one tax year to the next lives in
-          TAX_YEARS and nowhere else. To add a year: copy the most recent
-          entry, update the figures against the source noted beside each
-          block, add the id to YEAR_ORDER, add pinned figures to PINNED at
-          the foot of this file, and reload -- the self-checks will flag
-          anything inconsistent.
+          The rates live in /assets/uk-tax.js, shared with the other tax
+          tools on this site, so a Budget is one edit in one file. Add a
+          year there, then extend PINNED at the foot of this file so the
+          self-checks cover it.
 
-          Unlike the sibling take-home pay tool, the bands here are held in
-          TAXABLE income space -- income after the personal allowance -- because
-          that is the space savings, dividends and gains are actually stacked
-          in, and because the allowance taper makes the gross-income shortcut
-          break down exactly where this tool is most interesting. The familiar
-          gross figures (£50,270 and so on) are derived for display.
+          The shared file holds the income tax bands in TAXABLE income
+          space -- income after the personal allowance -- which is the
+          space savings, dividends and gains are actually stacked in, and
+          the space this tool works in throughout.
           ============================================================ */
 
-    var TAX_YEARS = {
-        "2025-26": {
-            label: "2025/26",
-            // gov.uk/government/publications/rates-and-allowances-income-tax
-            personalAllowance: 12570,
-            taperStart: 100000,          // allowance withdrawn £1 per £2 above this
-            basicRateLimit: 37700,       // taxable income; £50,270 gross with a full allowance
-            higherRateLimit: 125140,     // taxable income at which the additional rate starts
-            nonSavings: {
-                ruk: [
-                    { upTo: 37700,    rate: 20, name: "Basic rate" },
-                    { upTo: 125140,   rate: 40, name: "Higher rate" },
-                    { upTo: Infinity, rate: 45, name: "Additional rate" }
-                ],
-                // gov.scot/publications/scottish-income-tax-rates-and-bands
-                sco: [
-                    { upTo: 2827,     rate: 19, name: "Starter rate" },
-                    { upTo: 14921,    rate: 20, name: "Basic rate" },
-                    { upTo: 31092,    rate: 21, name: "Intermediate rate" },
-                    { upTo: 62430,    rate: 42, name: "Higher rate" },
-                    { upTo: 125140,   rate: 45, name: "Advanced rate" },
-                    { upTo: Infinity, rate: 48, name: "Top rate" }
-                ]
-            },
-            // Savings rates are the ordinary rates; the announced two point rise
-            // does not begin until 6 April 2027.
-            savings: { startingRateBand: 5000, psaBasic: 1000, psaHigher: 500, rates: [20, 40, 45] },
-            dividends: { allowance: 500, rates: [8.75, 33.75, 39.35] },
-            // BADR rose from 10% to 14% on 6 April 2025.
-            cgt: { aea: 3000, lower: 18, upper: 24, badr: 14, badrLimit: 1000000 },
-            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 }
-        },
-
-        "2026-27": {
-            label: "2026/27",
-            personalAllowance: 12570,
-            taperStart: 100000,
-            basicRateLimit: 37700,       // thresholds remain frozen
-            higherRateLimit: 125140,
-            nonSavings: {
-                ruk: [
-                    { upTo: 37700,    rate: 20, name: "Basic rate" },
-                    { upTo: 125140,   rate: 40, name: "Higher rate" },
-                    { upTo: Infinity, rate: 45, name: "Additional rate" }
-                ],
-                // Scottish starter, basic and intermediate thresholds up 7.4%,
-                // the rest frozen.
-                sco: [
-                    { upTo: 3967,     rate: 19, name: "Starter rate" },
-                    { upTo: 16956,    rate: 20, name: "Basic rate" },
-                    { upTo: 31092,    rate: 21, name: "Intermediate rate" },
-                    { upTo: 62430,    rate: 42, name: "Higher rate" },
-                    { upTo: 125140,   rate: 45, name: "Advanced rate" },
-                    { upTo: Infinity, rate: 48, name: "Top rate" }
-                ]
-            },
-            savings: { startingRateBand: 5000, psaBasic: 1000, psaHigher: 500, rates: [20, 40, 45] },
-            // Ordinary and upper dividend rates up two points from 6 April 2026;
-            // the additional rate was left alone.
-            dividends: { allowance: 500, rates: [10.75, 35.75, 39.35] },
-            // BADR rose again, from 14% to 18%, on 6 April 2026.
-            cgt: { aea: 3000, lower: 18, upper: 24, badr: 18, badrLimit: 1000000 },
-            employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 }
-        }
-    };
-
-    var YEAR_ORDER = ["2026-27", "2025-26"];    // newest first
+    var TAX_YEARS = UKTax.YEARS;
+    var YEAR_ORDER = UKTax.YEAR_ORDER;
     var DEFAULT_YEAR = YEAR_ORDER[0];
     var Y = TAX_YEARS[DEFAULT_YEAR];
 
     function loadYear(id) { Y = TAX_YEARS[id]; }
-    function taperEndOf(y) { return y.taperStart + 2 * y.personalAllowance; }
+    var taperEndOf = UKTax.taperEnd;
 
     /* ============================================================
           THE ENGINE
@@ -594,38 +526,13 @@
           same object, so a label can never disagree with the number beside it.
           ============================================================ */
 
-    // Charge `amount` of income starting at `pos` in taxable-income space.
-    function sliceTax(pos, amount, bands) {
-        var tax = 0;
-        for (var i = 0; i < bands.length && amount > 1e-12; i++) {
-            if (pos >= bands[i].upTo) continue;
-            var take = Math.min(amount, bands[i].upTo - pos);
-            tax += take * bands[i].rate / 100;
-            pos += take;
-            amount -= take;
-        }
-        return tax;
-    }
+    var sliceTax = UKTax.sliceTax;
 
-    function ukBands(y, rates) {
-        return [{ upTo: y.basicRateLimit,  rate: rates[0] },
-                { upTo: y.higherRateLimit, rate: rates[1] },
-                { upTo: Infinity,          rate: rates[2] }];
-    }
+    var ukBands = UKTax.ukBands;
 
-    // The allowance is withdrawn £1 for every £2 of income above the taper start.
-    // Capital gains are not income, so they never appear in this figure.
-    function paFor(y, totalIncome) {
-        return Math.max(0, y.personalAllowance - Math.max(0, (totalIncome - y.taperStart) / 2));
-    }
+    var paFor = UKTax.personalAllowance;
 
-    // £1,000 for a basic rate taxpayer, £500 for a higher rate one, nothing
-    // for an additional rate one -- tested against the UK limits even in Scotland.
-    function psaFor(y, totalTaxable) {
-        if (totalTaxable <= y.basicRateLimit) return y.savings.psaBasic;
-        if (totalTaxable <= y.higherRateLimit) return y.savings.psaHigher;
-        return 0;
-    }
+    var psaFor = UKTax.personalSavingsAllowance;
 
     function positionOf(y, other, savings, dividends) {
         other = Math.max(0, other);
@@ -690,12 +597,7 @@
     }
 
     function employeeNI(y, salary) {
-        var n = y.employeeNI;
-        return sliceTax(0, Math.max(0, salary), [
-            { upTo: n.primaryThreshold,   rate: 0 },
-            { upTo: n.upperEarningsLimit, rate: n.mainRate },
-            { upTo: Infinity,             rate: n.upperRate }
-        ]);
+        return UKTax.amountAt(UKTax.employeeNIBands(y), Math.max(0, salary));
     }
 
     /* ============================================================
@@ -718,10 +620,7 @@
     var SERIES_BY_ID = {};
     SERIES.forEach(function (s) { SERIES_BY_ID[s.id] = s; });
 
-    var REGIONS = [
-        { id: "ruk", label: "England, Wales & NI", dash: null },
-        { id: "sco", label: "Scotland",            dash: "7 4" }
-    ];
+    var REGIONS = UKTax.REGIONS;
 
     function taxDueOn(sid, region, other, amount) {
         if (sid === "emp") return incomeTax(Y, region, amount, 0, 0) + employeeNI(Y, amount);
@@ -801,11 +700,7 @@
         return (idx >= 0 ? NAMES[idx] : "Dividend") + " (" + bandD.rate + "%)" + suffix;
     }
 
-    function bandAt(bands, x) {
-        for (var i = 0; i < bands.length; i++) if (x < bands[i].upTo) return bands[i];
-        return bands[bands.length - 1];
-    }
-    function rateAt(bands, x) { return bandAt(bands, x).rate; }
+    var bandAt = UKTax.bandAt, rateAt = UKTax.rateAt;
 
     /* ============================================================
           State
@@ -1051,17 +946,9 @@
           Formatting
           ============================================================ */
 
-    function gbp(v) { return "£" + Math.round(v).toLocaleString("en-GB"); }
-    function gbpPence(v) {
-        return "£" + v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    function gbpShort(v) {
-        if (v === 0) return "£0";
-        if (Math.abs(v) < 1000) return "£" + Math.round(v);
-        if (v % 1000 === 0) return "£" + (v / 1000) + "k";
-        return "£" + Math.round(v / 1000) + "k";
-    }
-    function pct(r) { return (Math.round(r * 100) / 100) + "%"; }
+    var gbp = UKTax.gbp, gbpPence = UKTax.gbpPence, gbpShort = UKTax.gbpShort;
+    // Two decimals: a dividend rate of 33.75% needs them.
+    function pct(r) { return UKTax.pct(r, 2); }
 
     /* ============================================================
           SVG helpers
@@ -1394,16 +1281,9 @@
             var dd = document.createElement("dd"); dd.textContent = value;
             dl.appendChild(dt); dl.appendChild(dd);
         }
-        /* Bands are held as taxable income; these are the gross figures people
-              recognise. Adding the allowance back is only right below the taper —
-              inside it every extra pound of income costs 1.5 pounds of taxable
-              income, and above it the allowance is gone and the two coincide. */
-        function grossFor(t) {
-            var pa = Y.personalAllowance, ts = Y.taperStart;
-            if (t <= ts - pa) return t + pa;
-            if (t >= taperEndOf(Y)) return t;
-            return (t + pa + ts / 2) / 1.5;
-        }
+        // Bands are held as taxable income; these are the gross figures people
+        // recognise. The shared module derives them, taper and all.
+        function grossFor(t) { return UKTax.grossFor(Y, t); }
         function bandList(regionId) {
             var prev = 0;
             return Y.nonSavings[regionId].map(function (b) {
@@ -1732,13 +1612,7 @@
         }
     };
 
-    /* The UK tax year starts on 6 April. */
-    function currentTaxYearId(d) {
-        d = d || new Date();
-        var m = d.getMonth();
-        var start = (m > 3 || (m === 3 && d.getDate() >= 6)) ? d.getFullYear() : d.getFullYear() - 1;
-        return start + "-" + ("0" + ((start + 1) % 100)).slice(-2);
-    }
+    var currentTaxYearId = UKTax.currentTaxYearId;
 
     function integrateBands(bands, cliffs, A) {
         var total = 0, prev = 0;
@@ -1753,12 +1627,8 @@
     }
 
     function runSelfChecks() {
-        var results = [], failures = [];
-        function check(name, ok, detail) {
-            results.push(ok);
-            if (!ok) failures.push(name + (detail ? " — " + detail : ""));
-        }
-        function near(a, b, tol) { return Math.abs(a - b) <= (tol === undefined ? 0.01 : tol); }
+        var harness = UKTax.checker();
+        var check = harness.check, near = harness.near;
 
         var saved = { year: state.year, axis: state.axis, other: state.other,
                       amount: state.amount, xMax: state.xMax };
@@ -1886,19 +1756,9 @@
 
         var missing = !TAX_YEARS[currentTaxYearId()] ? currentTaxYearId() : null;
 
-        var passed = results.filter(Boolean).length;
         var out = document.getElementById("selfcheck");
-        if (failures.length) {
-            out.className = "selfcheck bad";
-            out.textContent = "✖ " + failures.length + " of " + results.length
-                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
-                + (failures.length > 6 ? "; …" : "");
-            if (window.console) console.error("Investment tax self-checks failed:", failures);
-        } else {
-            out.className = "selfcheck ok";
-            out.textContent = "✓ " + passed + " self-checks passed for "
-                + Object.keys(TAX_YEARS).length + " tax years.";
-        }
+        harness.report("selfcheck", "for " + Object.keys(TAX_YEARS).length + " tax years",
+                       "__investmentSelfChecks");
         if (missing) {
             var warn = document.createElement("p");
             warn.className = "selfcheck bad";
@@ -1906,7 +1766,6 @@
                 + " tax year has begun but is not in TAX_YEARS — add it.";
             out.parentNode.insertBefore(warn, out.nextSibling);
         }
-        window.__investmentSelfChecks = { passed: passed, total: results.length, failures: failures };
     }
 
     buildYearOptions();
