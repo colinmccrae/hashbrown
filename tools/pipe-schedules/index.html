@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pipe Schedules &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="ASME B36.10M and B36.19M pipe schedules: outside diameter, wall thickness, bore, weight and capacity for every nominal size, in metric or imperial units.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* pipe wall */
+                --series-2:       #eb6834;  /* the selected bore */
+                --series-3:       #1baf7a;  /* other schedules' bores */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            /* Wraps rather than running off the side of a narrow screen. */
+            .ctl-pair { display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end; }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .band-wash { fill: var(--text-muted); opacity: 0.075; }
+            .band-note { fill: var(--text-muted); font-size: 10.5px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .cliff-rule { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; }
+            .cliff-note { fill: var(--text-secondary); font-size: 10.5px; font-weight: 600; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 210px; max-width: 290px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- cliff stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            .cc-group { display: flex; gap: 10px; align-items: center; }
+            .sub-ctl { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-muted); }
+            .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+            /* The row matching the other selector, so the table and the
+                  diagram are visibly talking about the same pipe. */
+            tbody tr.is-current td { font-weight: 600; color: var(--text-primary); }
+            tbody tr.is-current { background: var(--accent-soft); }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+            .viz-root .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            /* The shared sheet makes every <label> an uppercase block; the paired
+                  childcare selects need theirs inline and in sentence case. */
+            .viz-root label.sub-ctl {
+                display: flex;
+                text-transform: none;
+                letter-spacing: normal;
+                font-weight: 400;
+                font-size: 11.5px;
+                color: var(--ink-faint);
+                margin-block-end: 0;
+            }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style>
+</head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Pipe schedules</h1>
+        <p class="lede">Outside diameter, wall thickness, bore, weight and capacity for
+            wrought steel pipe to ASME B36.10M and B36.19M. Nominal pipe size says almost
+            nothing about the bore on its own &mdash; the schedule is what decides it.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                    <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="std-sel">Standard</label>
+                        <select id="std-sel">
+                            <option value="b3610" selected>B36.10M &mdash; carbon &amp; alloy steel</option>
+                            <option value="b3619">B36.19M &mdash; stainless steel</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="units-sel">Units</label>
+                        <select id="units-sel">
+                            <option value="metric" selected>Metric &mdash; mm, kg</option>
+                            <option value="imperial">Imperial &mdash; inch, lb</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">Table</label>
+                        <select id="view-sel">
+                            <option value="size" selected>One size, every schedule</option>
+                            <option value="schedule">One schedule, every size</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="size-sel">Nominal size</label>
+                        <select id="size-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="sched-sel">Schedule</label>
+                        <select id="sched-sel"></select>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="stats" id="stats"></div>
+
+                <div class="card">
+                    <div class="plot-wrap">
+                        <svg class="chart" id="chart" viewBox="0 0 920 380" preserveAspectRatio="xMidYMid meet"
+                                  role="img" aria-label="Scale cross-section of the selected pipe."></svg>
+                    </div>
+                    <div class="legend" id="legend"></div>
+                </div>
+                <p class="caption" id="caption"></p>
+
+                <section class="block">
+                    <h2 id="table-heading">Dimensions</h2>
+                    <div class="tbl-scroll">
+                        <table id="table"></table>
+                    </div>
+                </section>
+
+                <details class="notes">
+                    <summary>Assumptions &amp; sources</summary>
+                    <div class="figures" id="figures"></div>
+                    <ul>
+                        <li><strong>Nominal pipe size is a label, not a dimension.</strong> Below NPS 14
+                            it is neither the bore nor the outside diameter &mdash; NPS 2 pipe is 60.3&nbsp;mm
+                            outside, whatever its schedule. From NPS 14 upwards the outside diameter is
+                            simply the NPS in inches. What every size shares is that the <em>outside</em>
+                            diameter is fixed, so the schedule eats into the bore and nothing else. That is
+                            the whole point of the system: the same fittings, flanges and tooling fit every
+                            schedule of a given size.</li>
+                        <li><strong>A schedule is not a pressure rating.</strong> The number came from an
+                            approximation to 1,000&nbsp;&times;&nbsp;P/S, but the published walls are rounded
+                            and the series has been extended and patched over decades. Working pressure
+                            depends on the material, the design code, temperature, corrosion allowance, mill
+                            tolerance and the joint &mdash; not on the schedule number. Use this table for
+                            dimensions and mass, and a code such as ASME B31.3 for pressure.</li>
+                        <li><strong>STD, XS and XXS are older designations</strong> that pre-date the
+                            schedule numbers and are still in daily use. STD matches Schedule 40 up to
+                            NPS&nbsp;10 and is a constant 9.53&nbsp;mm (0.375&nbsp;in) above it; XS matches
+                            Schedule 80 up to NPS&nbsp;8 and is a constant 12.7&nbsp;mm (0.500&nbsp;in) above
+                            it. XXS follows no schedule at all and stops at NPS&nbsp;12. Where a designation
+                            and a schedule coincide the table shows both, because purchase orders use both.</li>
+                        <li><strong>The S schedules are a different standard.</strong> B36.19M covers
+                            stainless and other corrosion-resistant alloys, in a thinner-walled range that
+                            suits a material which needs no corrosion allowance. Where the two standards
+                            overlap the relationships are exact, and worth knowing: <strong>5S is Schedule
+                            5</strong>, <strong>40S is STD</strong> and <strong>80S is XS</strong> at every
+                            size &mdash; <em>not</em> Schedules 40 and 80, which 40S and 80S leave behind
+                            above NPS&nbsp;10 and NPS&nbsp;8 respectively. 10S is Schedule 10 apart from
+                            NPS&nbsp;14 to 22, where it is thinner. Sizes outside B36.19M fall back to
+                            B36.10M in practice. All four equalities are asserted by the self-checks below,
+                            so a future edit that breaks one will say so.</li>
+                        <li><strong>The two standards even round the millimetres differently.</strong>
+                            NPS&nbsp;10 and NPS&nbsp;12 are exactly 10.750&nbsp;in and 12.750&nbsp;in in both,
+                            but B36.10M prints 273.0 and 323.8&nbsp;mm where B36.19M prints 273.1 and
+                            323.9&nbsp;mm. This tool shows whichever belongs to the standard selected, which
+                            is why the outside diameter can move by a tenth of a millimetre when you switch.</li>
+                        <li><strong>Weights are plain end,</strong> meaning a bare cut length with no
+                            threads, couplings, coating, lining or flanges, and they are nominal &mdash; real
+                            pipe carries a mill tolerance, commonly &minus;12.5% on wall for seamless, so a
+                            length can legitimately weigh appreciably less than the table says. The
+                            formulas and constants used are listed above.</li>
+                        <li><strong>Metric and imperial weights are not exact conversions of each other,</strong>
+                            and that is faithful to the standard rather than a rounding error here: its
+                            metric constant implies a density of 7,850&nbsp;kg/m&sup3; and its imperial
+                            constant about 7,845&nbsp;kg/m&sup3;. The two columns differ by roughly 0.1%.
+                            Each is computed from the dimensions printed in its own unit system, so each
+                            matches the published tables it belongs to.</li>
+                        <li><strong>Capacity and filled weight</strong> assume the bore is a plain circle
+                            running full of fresh water at 1,000&nbsp;kg/m&sup3;, and ignore any lining,
+                            scale or wall tolerance. They are there for hydrotest and support loading
+                            arithmetic, not for custody transfer.</li>
+                        <li><strong>Not covered here:</strong> tube (sized by actual outside diameter and
+                            gauge, a different system entirely), pipe to BS 1387 or EN 10255, cast iron,
+                            copper, plastics, NPS above 48, the thin decimal-wall sizes some mills offer,
+                            end preparation, and everything about material grade, which is where the
+                            engineering actually lives.</li>
+                        <li>Dimensions are taken from ASME B36.10M and B36.19M as published in the
+                            open-source <code>fluids</code> engineering library, and independently
+                            cross-checked: every wall thickness round-trips between millimetres and inches,
+                            and the weights reproduce the published plain-end figures.</li>
+                    </ul>
+                    <p class="selfcheck" id="selfcheck"></p>
+                </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">A reference table, not a design document. Dimensions are nominal and
+        weights are plain end; check against the governing standard and the mill certificate
+        before cutting, ordering or calculating anything that matters.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* ============================================================
+          PIPE DATA -- ASME B36.10M and B36.19M
+          ------------------------------------------------------------
+          Wall thicknesses are held in millimetres only, and the inch
+          values are derived by dividing by 25.4 and rounding to three
+          decimals. That is not a shortcut: the standard's own inch and
+          millimetre columns are the same dimension printed two ways, and
+          a self-check below confirms every wall round-trips between them.
+          Outside diameters are held in both, because there the rounding
+          runs the other way -- the inch value is exact and the millimetre
+          one is rounded, to whole millimetres in the larger sizes.
+
+          odMm19 appears only where B36.19M rounds an outside diameter
+          differently from B36.10M, which happens at NPS 10 and 12 alone.
+          ============================================================ */
+
+    var SIZES = [
+        { nps: "1/8", dn: 6, odIn: 0.405, odMm: 10.3,
+          t: { "10": 1.24, "30": 1.45, "40": 1.73, "80": 2.41, "STD": 1.73, "XS": 2.41, "10S": 1.24, "40S": 1.73, "80S": 2.41 } },
+        { nps: "1/4", dn: 8, odIn: 0.54, odMm: 13.7,
+          t: { "10": 1.65, "30": 1.85, "40": 2.24, "80": 3.02, "STD": 2.24, "XS": 3.02, "10S": 1.65, "40S": 2.24, "80S": 3.02 } },
+        { nps: "3/8", dn: 10, odIn: 0.675, odMm: 17.1,
+          t: { "10": 1.65, "30": 1.85, "40": 2.31, "80": 3.2, "STD": 2.31, "XS": 3.2, "10S": 1.65, "40S": 2.31, "80S": 3.2 } },
+        { nps: "1/2", dn: 15, odIn: 0.84, odMm: 21.3,
+          t: { "5": 1.65, "10": 2.11, "30": 2.41, "40": 2.77, "80": 3.73, "160": 4.78, "STD": 2.77, "XS": 3.73, "XXS": 7.47, "5S": 1.65, "10S": 2.11, "40S": 2.77, "80S": 3.73 } },
+        { nps: "3/4", dn: 20, odIn: 1.05, odMm: 26.7,
+          t: { "5": 1.65, "10": 2.11, "30": 2.41, "40": 2.87, "80": 3.91, "160": 5.56, "STD": 2.87, "XS": 3.91, "XXS": 7.82, "5S": 1.65, "10S": 2.11, "40S": 2.87, "80S": 3.91 } },
+        { nps: "1", dn: 25, odIn: 1.315, odMm: 33.4,
+          t: { "5": 1.65, "10": 2.77, "30": 2.9, "40": 3.38, "80": 4.55, "160": 6.35, "STD": 3.38, "XS": 4.55, "XXS": 9.09, "5S": 1.65, "10S": 2.77, "40S": 3.38, "80S": 4.55 } },
+        { nps: "1-1/4", dn: 32, odIn: 1.66, odMm: 42.2,
+          t: { "5": 1.65, "10": 2.77, "30": 2.97, "40": 3.56, "80": 4.85, "160": 6.35, "STD": 3.56, "XS": 4.85, "XXS": 9.7, "5S": 1.65, "10S": 2.77, "40S": 3.56, "80S": 4.85 } },
+        { nps: "1-1/2", dn: 40, odIn: 1.9, odMm: 48.3,
+          t: { "5": 1.65, "10": 2.77, "30": 3.18, "40": 3.68, "80": 5.08, "160": 7.14, "STD": 3.68, "XS": 5.08, "XXS": 10.15, "5S": 1.65, "10S": 2.77, "40S": 3.68, "80S": 5.08 } },
+        { nps: "2", dn: 50, odIn: 2.375, odMm: 60.3,
+          t: { "5": 1.65, "10": 2.77, "30": 3.18, "40": 3.91, "80": 5.54, "160": 8.74, "STD": 3.91, "XS": 5.54, "XXS": 11.07, "5S": 1.65, "10S": 2.77, "40S": 3.91, "80S": 5.54 } },
+        { nps: "2-1/2", dn: 65, odIn: 2.875, odMm: 73,
+          t: { "5": 2.11, "10": 3.05, "30": 4.78, "40": 5.16, "80": 7.01, "160": 9.53, "STD": 5.16, "XS": 7.01, "XXS": 14.02, "5S": 2.11, "10S": 3.05, "40S": 5.16, "80S": 7.01 } },
+        { nps: "3", dn: 80, odIn: 3.5, odMm: 88.9,
+          t: { "5": 2.11, "10": 3.05, "30": 4.78, "40": 5.49, "80": 7.62, "160": 11.13, "STD": 5.49, "XS": 7.62, "XXS": 15.24, "5S": 2.11, "10S": 3.05, "40S": 5.49, "80S": 7.62 } },
+        { nps: "3-1/2", dn: 90, odIn: 4, odMm: 101.6,
+          t: { "5": 2.11, "10": 3.05, "30": 4.78, "40": 5.74, "80": 8.08, "STD": 5.74, "XS": 8.08, "5S": 2.11, "10S": 3.05, "40S": 5.74, "80S": 8.08 } },
+        { nps: "4", dn: 100, odIn: 4.5, odMm: 114.3,
+          t: { "5": 2.11, "10": 3.05, "30": 4.78, "40": 6.02, "80": 8.56, "120": 11.13, "160": 13.49, "STD": 6.02, "XS": 8.56, "XXS": 17.12, "5S": 2.11, "10S": 3.05, "40S": 6.02, "80S": 8.56 } },
+        { nps: "5", dn: 125, odIn: 5.563, odMm: 141.3,
+          t: { "5": 2.77, "10": 3.4, "40": 6.55, "80": 9.53, "120": 12.7, "160": 15.88, "STD": 6.55, "XS": 9.53, "XXS": 19.05, "5S": 2.77, "10S": 3.4, "40S": 6.55, "80S": 9.53 } },
+        { nps: "6", dn: 150, odIn: 6.625, odMm: 168.3,
+          t: { "5": 2.77, "10": 3.4, "40": 7.11, "80": 10.97, "120": 14.27, "160": 18.26, "STD": 7.11, "XS": 10.97, "XXS": 21.95, "5S": 2.77, "10S": 3.4, "40S": 7.11, "80S": 10.97 } },
+        { nps: "8", dn: 200, odIn: 8.625, odMm: 219.1,
+          t: { "5": 2.77, "10": 3.76, "20": 6.35, "30": 7.04, "40": 8.18, "60": 10.31, "80": 12.7, "100": 15.09, "120": 18.26, "140": 20.62, "160": 23.01, "STD": 8.18, "XS": 12.7, "XXS": 22.23, "5S": 2.77, "10S": 3.76, "40S": 8.18, "80S": 12.7 } },
+        { nps: "10", dn: 250, odIn: 10.75, odMm: 273, odMm19: 273.1,
+          t: { "5": 3.4, "10": 4.19, "20": 6.35, "30": 7.8, "40": 9.27, "60": 12.7, "80": 15.09, "100": 18.26, "120": 21.44, "140": 25.4, "160": 28.58, "STD": 9.27, "XS": 12.7, "XXS": 25.4, "5S": 3.4, "10S": 4.19, "40S": 9.27, "80S": 12.7 } },
+        { nps: "12", dn: 300, odIn: 12.75, odMm: 323.8, odMm19: 323.9,
+          t: { "5": 3.96, "10": 4.57, "20": 6.35, "30": 8.38, "40": 10.31, "60": 14.27, "80": 17.48, "100": 21.44, "120": 25.4, "140": 28.58, "160": 33.32, "STD": 9.53, "XS": 12.7, "XXS": 25.4, "5S": 3.96, "10S": 4.57, "40S": 9.53, "80S": 12.7 } },
+        { nps: "14", dn: 350, odIn: 14, odMm: 355.6,
+          t: { "5": 3.96, "10": 6.35, "20": 7.92, "30": 9.53, "40": 11.13, "60": 15.09, "80": 19.05, "100": 23.83, "120": 27.79, "140": 31.75, "160": 35.71, "STD": 9.53, "XS": 12.7, "5S": 3.96, "10S": 4.78, "40S": 9.53, "80S": 12.7 } },
+        { nps: "16", dn: 400, odIn: 16, odMm: 406.4,
+          t: { "5": 4.19, "10": 6.35, "20": 7.92, "30": 9.53, "40": 12.7, "60": 16.66, "80": 21.44, "100": 26.19, "120": 30.96, "140": 36.53, "160": 40.49, "STD": 9.53, "XS": 12.7, "5S": 4.19, "10S": 4.78, "40S": 9.53, "80S": 12.7 } },
+        { nps: "18", dn: 450, odIn: 18, odMm: 457,
+          t: { "5": 4.19, "10": 6.35, "20": 7.92, "30": 11.13, "40": 14.27, "60": 19.05, "80": 23.83, "100": 29.36, "120": 34.93, "140": 39.67, "160": 45.24, "STD": 9.53, "XS": 12.7, "5S": 4.19, "10S": 4.78, "40S": 9.53, "80S": 12.7 } },
+        { nps: "20", dn: 500, odIn: 20, odMm: 508,
+          t: { "5": 4.78, "10": 6.35, "20": 9.53, "30": 12.7, "40": 15.09, "60": 20.62, "80": 26.19, "100": 32.54, "120": 38.1, "140": 44.45, "160": 50.01, "STD": 9.53, "XS": 12.7, "5S": 4.78, "10S": 5.54, "40S": 9.53, "80S": 12.7 } },
+        { nps: "22", dn: 550, odIn: 22, odMm: 559,
+          t: { "5": 4.78, "10": 6.35, "20": 9.53, "30": 12.7, "60": 22.23, "80": 28.58, "100": 34.93, "120": 41.28, "140": 47.63, "160": 53.98, "STD": 9.53, "XS": 12.7, "5S": 4.78, "10S": 5.54 } },
+        { nps: "24", dn: 600, odIn: 24, odMm: 610,
+          t: { "5": 5.54, "10": 6.35, "20": 9.53, "30": 14.27, "40": 17.48, "60": 24.61, "80": 30.96, "100": 38.89, "120": 46.02, "140": 52.37, "160": 59.54, "STD": 9.53, "XS": 12.7, "5S": 5.54, "10S": 6.35, "40S": 9.53, "80S": 12.7 } },
+        { nps: "26", dn: 650, odIn: 26, odMm: 660,
+          t: { "10": 7.92, "20": 12.7, "STD": 9.53, "XS": 12.7 } },
+        { nps: "28", dn: 700, odIn: 28, odMm: 711,
+          t: { "10": 7.92, "20": 12.7, "30": 15.88, "STD": 9.53, "XS": 12.7 } },
+        { nps: "30", dn: 750, odIn: 30, odMm: 762,
+          t: { "5": 6.35, "10": 7.92, "20": 12.7, "30": 15.88, "STD": 9.53, "XS": 12.7, "5S": 6.35, "10S": 7.92 } },
+        { nps: "32", dn: 800, odIn: 32, odMm: 813,
+          t: { "10": 7.92, "20": 12.7, "30": 15.88, "40": 17.48, "STD": 9.53, "XS": 12.7 } },
+        { nps: "34", dn: 850, odIn: 34, odMm: 864,
+          t: { "10": 7.92, "20": 12.7, "30": 15.88, "40": 17.48, "STD": 9.53, "XS": 12.7 } },
+        { nps: "36", dn: 900, odIn: 36, odMm: 914,
+          t: { "10": 7.92, "20": 12.7, "30": 15.88, "40": 19.05, "STD": 9.53, "XS": 12.7 } },
+        { nps: "38", dn: 950, odIn: 38, odMm: 965,
+          t: { "STD": 9.53, "XS": 12.7 } },
+        { nps: "40", dn: 1000, odIn: 40, odMm: 1016,
+          t: { "STD": 9.53, "XS": 12.7 } },
+        { nps: "42", dn: 1050, odIn: 42, odMm: 1067,
+          t: { "STD": 9.53, "XS": 12.7 } },
+        { nps: "44", dn: 1100, odIn: 44, odMm: 1118,
+          t: { "STD": 9.53, "XS": 12.7 } },
+        { nps: "46", dn: 1150, odIn: 46, odMm: 1168,
+          t: { "STD": 9.53, "XS": 12.7 } },
+        { nps: "48", dn: 1200, odIn: 48, odMm: 1219,
+          t: { "STD": 9.53, "XS": 12.7 } }
+    ];
+
+    var SCHEDULES = [
+        { id: "5",   label: "Sch 5",   std: "b3610" },
+        { id: "10",  label: "Sch 10",  std: "b3610" },
+        { id: "20",  label: "Sch 20",  std: "b3610" },
+        { id: "30",  label: "Sch 30",  std: "b3610" },
+        { id: "40",  label: "Sch 40",  std: "b3610" },
+        { id: "60",  label: "Sch 60",  std: "b3610" },
+        { id: "80",  label: "Sch 80",  std: "b3610" },
+        { id: "100", label: "Sch 100", std: "b3610" },
+        { id: "120", label: "Sch 120", std: "b3610" },
+        { id: "140", label: "Sch 140", std: "b3610" },
+        { id: "160", label: "Sch 160", std: "b3610" },
+        { id: "STD", label: "STD",     std: "b3610" },
+        { id: "XS",  label: "XS",      std: "b3610" },
+        { id: "XXS", label: "XXS",     std: "b3610" },
+        { id: "5S",  label: "Sch 5S",  std: "b3619" },
+        { id: "10S", label: "Sch 10S", std: "b3619" },
+        { id: "40S", label: "Sch 40S", std: "b3619" },
+        { id: "80S", label: "Sch 80S", std: "b3619" }
+    ];
+
+    /* B36.10M gives the plain end mass as 0.02466 t (D - t) kg/m and
+          10.6802 t (D - t) lb/ft. The two imply slightly different densities --
+          about 7,850 and 7,845 kg/m3 -- so each unit system is computed from
+          its own dimensions and its own constant, which is what reproduces the
+          published tables. Water is taken at 1,000 kg/m3. */
+    var STEEL_KG_M  = 0.02466;      // t and D in mm
+    var STEEL_LB_FT = 10.6802;      // t and D in inches
+    var WATER_LB_IN3 = 0.0361273;
+    var IN3_PER_USGAL = 231;
+    var MM_PER_IN = 25.4;
+
+    var state = { std: "b3610", units: "metric", view: "size", size: "8", sched: "40" };
+
+    function isMetric() { return state.units === "metric"; }
+    function sizeByName(n) {
+        for (var i = 0; i < SIZES.length; i++) if (SIZES[i].nps === n) return SIZES[i];
+        return null;
+    }
+    function schedById(id) {
+        for (var i = 0; i < SCHEDULES.length; i++) if (SCHEDULES[i].id === id) return SCHEDULES[i];
+        return null;
+    }
+    function schedulesFor(std) {
+        return SCHEDULES.filter(function (s) { return s.std === std; });
+    }
+    // Which schedules of the selected standard this size is actually made in.
+    function schedulesForSize(size) {
+        return schedulesFor(state.std).filter(function (s) { return size.t[s.id] !== undefined; });
+    }
+    function sizesForSchedule(id) {
+        return SIZES.filter(function (z) { return z.t[id] !== undefined; });
+    }
+
+    /* ============================================================
+          Dimensions. Everything below is derived from two numbers --
+          the outside diameter and the wall -- so nothing can drift.
+          ============================================================ */
+
+    function odMm(size) {
+        return (state.std === "b3619" && size.odMm19 !== undefined) ? size.odMm19 : size.odMm;
+    }
+    function wallMm(size, schedId) { return size.t[schedId]; }
+    function wallIn(size, schedId) {
+        var t = size.t[schedId];
+        return t === undefined ? undefined : Math.round(t / MM_PER_IN * 1000) / 1000;
+    }
+
+    // A full set of properties for one size and schedule, in the active units.
+    function props(size, schedId) {
+        var metric = isMetric();
+        var D = metric ? odMm(size) : size.odIn;
+        var t = metric ? wallMm(size, schedId) : wallIn(size, schedId);
+        if (t === undefined) return null;
+        var id = D - 2 * t;
+        var area = Math.PI / 4 * id * id;
+        var mass = (metric ? STEEL_KG_M : STEEL_LB_FT) * t * (D - t);
+        // Capacity: mm2 -> litres per metre, or in2 -> US gallons per foot.
+        var cap = metric ? area / 1000 : area * 12 / IN3_PER_USGAL;
+        var water = metric ? cap : area * 12 * WATER_LB_IN3;
+        return { od: D, wall: t, id: id, area: area, mass: mass,
+                 cap: cap, water: water, full: mass + water };
+    }
+
+    /* ============================================================
+          Formatting
+          ============================================================ */
+
+    function num(v, dp) {
+        return v.toLocaleString("en-GB", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    }
+    function len(v) { return num(v, isMetric() ? 2 : 3); }
+    function mass(v) { return num(v, 2); }
+    function cap(v) { return num(v, isMetric() ? 2 : 4); }
+    var LABELS = {
+        metric:   { len: "mm", mass: "kg/m", cap: "l/m", area: "mm²" },
+        imperial: { len: "in", mass: "lb/ft", cap: "US gal/ft", area: "in²" }
+    };
+    function unitLabel(k) { return LABELS[state.units][k]; }
+
+    /* ============================================================
+          SVG helpers
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+
+    var svg = document.getElementById("chart");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var statsEl = document.getElementById("stats");
+    var tableEl = document.getElementById("table");
+
+    var VB_W = 920, VB_H = 380;
+
+    /* The cross-section is drawn to scale, which is the point of it: the
+          wall of a Schedule 160 two-inch pipe really is that proportion of the
+          bore. Every other schedule for the same size is drawn as a faint ring,
+          so what a schedule costs you in bore is visible rather than tabulated. */
+    function drawSection(size, schedId) {
+        var g = el("g");
+        var cx = 200, cy = VB_H / 2 + 4, rMax = 138;
+        var D = isMetric() ? odMm(size) : size.odIn;
+        var scale = rMax / (D / 2);
+        var p = props(size, schedId);
+
+        g.appendChild(el("circle", { cx: cx, cy: cy, r: (D / 2 * scale).toFixed(2),
+            fill: "var(--series-1)", "fill-opacity": "0.9" }));
+        g.appendChild(el("circle", { cx: cx, cy: cy, r: (p.id / 2 * scale).toFixed(2),
+            fill: "var(--surface-1)" }));
+
+        /* The other schedules deliberately are NOT drawn here as rings. On a
+              size like NPS 8 they fall within a few millimetres of each other and
+              read as texture rather than as information; the bars alongside make
+              the same comparison legibly. */
+
+        // Outside diameter, dimensioned above the section.
+        var y = cy - rMax - 22, x1 = cx - D / 2 * scale, x2 = cx + D / 2 * scale;
+        g.appendChild(el("line", { x1: x1, y1: y, x2: x2, y2: y, class: "axis-line" }));
+        [x1, x2].forEach(function (x) {
+            g.appendChild(el("line", { x1: x, y1: y - 4, x2: x, y2: y + 4, class: "axis-line" }));
+        });
+        g.appendChild(el("text", { x: cx, y: y - 8, class: "band-note", "text-anchor": "middle" },
+            "OD " + len(p.od) + " " + unitLabel("len")));
+
+        // Bore, dimensioned across the middle.
+        var b1 = cx - p.id / 2 * scale, b2 = cx + p.id / 2 * scale;
+        g.appendChild(el("line", { x1: b1, y1: cy, x2: b2, y2: cy, class: "axis-line" }));
+        g.appendChild(el("text", { x: cx, y: cy - 7, class: "band-note", "text-anchor": "middle" },
+            "bore " + len(p.id)));
+        g.appendChild(el("text", { x: cx, y: cy + rMax + 26, class: "band-note", "text-anchor": "middle" },
+            "wall " + len(p.wall) + " " + unitLabel("len")));
+        return g;
+    }
+
+    /* Bore against schedule for this size, which is the comparison the
+          cross-section can only hint at once there are a dozen rings. */
+    function drawBores(size, schedId, list) {
+        var g = el("g");
+        var x0 = 470, xMax = 848, valueX = 856, top = 34, bottom = VB_H - 26;
+        var D = isMetric() ? odMm(size) : size.odIn;
+        var rowH = Math.min(26, (bottom - top) / Math.max(list.length, 1));
+        var scale = (xMax - x0) / D;
+
+        g.appendChild(el("text", { x: 400, y: top - 12, class: "band-note" },
+            "Bore by schedule, to the same scale"));
+
+        list.forEach(function (s, i) {
+            var q = props(size, s.id);
+            if (!q) return;
+            var y = top + i * rowH, h = Math.max(5, rowH - 7);
+            var sel = s.id === schedId;
+            g.appendChild(el("rect", { x: x0, y: y.toFixed(2), width: (D * scale).toFixed(2),
+                height: h.toFixed(2), fill: "var(--series-1)", "fill-opacity": sel ? "0.32" : "0.16",
+                rx: 2 }));
+            g.appendChild(el("rect", { x: x0, y: y.toFixed(2),
+                width: Math.max(0, q.id * scale).toFixed(2), height: h.toFixed(2),
+                fill: sel ? "var(--series-2)" : "var(--series-3)",
+                "fill-opacity": sel ? "0.95" : "0.5", rx: 2 }));
+            g.appendChild(el("text", { x: x0 - 8, y: (y + h / 2 + 3.5).toFixed(2),
+                class: "tick-text", "text-anchor": "end",
+                "font-weight": sel ? "600" : "400" }, s.label));
+            // Values line up in their own column rather than trailing each bar,
+            // so the whole set reads down the page like the table it mirrors.
+            g.appendChild(el("text", { x: valueX, y: (y + h / 2 + 3.5).toFixed(2),
+                class: "tick-text", "font-weight": sel ? "600" : "400" }, len(q.id)));
+        });
+        return g;
+    }
+
+    function render() {
+        var size = sizeByName(state.size);
+        var list = schedulesForSize(size);
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        svg.appendChild(drawSection(size, state.sched));
+        svg.appendChild(drawBores(size, state.sched, list));
+        svg.setAttribute("aria-label", "Scale cross-section of NPS " + size.nps + " "
+            + schedById(state.sched).label + " pipe, and its bore against every other schedule.");
+        renderStats();
+        renderLegend();
+        renderCaption();
+        renderFigures();
+        renderTable();
+    }
+
+    function keySwatch(colour, opacity) {
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", 14); s.setAttribute("height", 14);
+        s.setAttribute("viewBox", "0 0 14 14");
+        s.appendChild(el("rect", { x: 0, y: 2, width: 14, height: 10, rx: 2,
+            fill: colour, "fill-opacity": opacity }));
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        [["var(--series-1)", "0.9", "Pipe wall"],
+         ["var(--series-2)", "0.95", "Bore, selected schedule"],
+         ["var(--series-3)", "0.5", "Bore, other schedules"]].forEach(function (k) {
+            var item = div("lg-item");
+            item.appendChild(keySwatch(k[0], k[1]));
+            item.appendChild(document.createTextNode(k[2]));
+            legendEl.appendChild(item);
+        });
+    }
+
+    function renderCaption() {
+        var size = sizeByName(state.size), sch = schedById(state.sched);
+        var list = schedulesForSize(size);
+        var parts = ["NPS " + size.nps + " (DN " + size.dn + ") is "
+            + len(isMetric() ? odMm(size) : size.odIn) + " " + unitLabel("len")
+            + " outside diameter in every schedule; only the bore changes."];
+        if (list.length > 1) {
+            var widest = props(size, list[0].id), narrowest = widest;
+            list.forEach(function (s) {
+                var q = props(size, s.id);
+                if (q.id > widest.id) widest = q;
+                if (q.id < narrowest.id) narrowest = q;
+            });
+            parts.push("Across the " + list.length + " schedules listed for it the bore runs from "
+                + len(widest.id) + " down to " + len(narrowest.id) + " " + unitLabel("len")
+                + ", a loss of " + num((1 - narrowest.area / widest.area) * 100, 0)
+                + "% of flow area.");
+        }
+        parts.push(sch.std === "b3619"
+            ? "B36.19M covers stainless and other corrosion-resistant alloys."
+            : "B36.10M covers welded and seamless wrought carbon and alloy steel pipe.");
+        captionEl.textContent = parts.join(" ");
+    }
+
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        var size = sizeByName(state.size), sch = schedById(state.sched);
+        var p = props(size, state.sched);
+        var g = document.createElement("div");
+        g.className = "stat-group";
+        var h = document.createElement("h3");
+        h.textContent = "NPS " + size.nps + " · DN " + size.dn + " · " + sch.label;
+        g.appendChild(h);
+        var row = div("stat-row");
+        [["Outside diameter", len(p.od) + " " + unitLabel("len")],
+         ["Wall", len(p.wall) + " " + unitLabel("len")],
+         ["Bore", len(p.id) + " " + unitLabel("len")],
+         ["Weight, plain end", mass(p.mass) + " " + unitLabel("mass")],
+         ["Capacity", cap(p.cap) + " " + unitLabel("cap")],
+         ["Weight full of water", mass(p.full) + " " + unitLabel("mass")]
+        ].forEach(function (pair) {
+            var cell = document.createElement("div");
+            var lab = document.createElement("span");
+            lab.className = "stat-label";
+            lab.textContent = pair[0];
+            cell.appendChild(lab);
+            cell.appendChild(div("stat-value", pair[1]));
+            row.appendChild(cell);
+        });
+        g.appendChild(row);
+        g.appendChild(div("stat-note", "Internal area " + num(p.area, isMetric() ? 0 : 3)
+            + " " + unitLabel("area") + ". Weights are plain end and nominal, before any mill "
+            + "tolerance on wall."));
+        statsEl.appendChild(g);
+    }
+
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+        var h = document.createElement("h4");
+        h.textContent = "Constants and formulas";
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        row("Bore", "d = D − 2t");
+        row("Plain end weight, metric", "w = " + STEEL_KG_M + " · t · (D − t) kg/m, with t and D in mm");
+        row("Plain end weight, imperial", "w = " + STEEL_LB_FT + " · t · (D − t) lb/ft, with t and D in inches");
+        row("Internal area", "A = π d² / 4");
+        row("Capacity", "A in mm² ÷ 1,000 = litres per metre; A in in² × 12 ÷ " + IN3_PER_USGAL
+            + " = US gallons per foot");
+        row("Water", "1,000 kg/m³, taken as " + WATER_LB_IN3 + " lb/in³ in imperial units");
+        row("Sizes covered", "NPS 1/8 to 48 · DN 6 to 1200, " + SIZES.length + " sizes and "
+            + SCHEDULES.length + " schedules across the two standards");
+        host.appendChild(dl);
+    }
+
+    /* ============================================================
+          Table -- the same numbers without the picture, and the route
+          to every size at once.
+          ============================================================ */
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        var size = sizeByName(state.size), sch = schedById(state.sched);
+        var bySize = state.view === "size";
+
+        document.getElementById("table-heading").textContent = bySize
+            ? "Every schedule in NPS " + size.nps
+            : "Every size in " + sch.label;
+
+        var cap0 = document.createElement("caption");
+        cap0.textContent = bySize
+            ? "NPS " + size.nps + " (DN " + size.dn + "), outside diameter "
+                + len(isMetric() ? odMm(size) : size.odIn) + " " + unitLabel("len")
+                + " throughout. The selected schedule is in bold."
+            : sch.label + " to " + (sch.std === "b3619" ? "ASME B36.19M" : "ASME B36.10M")
+                + ", every nominal size it is made in. The selected size is in bold.";
+        tableEl.appendChild(cap0);
+
+        var cols = (bySize ? ["Schedule"] : ["NPS", "DN"]).concat([
+            "OD (" + unitLabel("len") + ")", "Wall (" + unitLabel("len") + ")",
+            "Bore (" + unitLabel("len") + ")", "Weight (" + unitLabel("mass") + ")",
+            "Capacity (" + unitLabel("cap") + ")", "Full of water (" + unitLabel("mass") + ")"]);
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        cols.forEach(function (c) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = c;
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        var rows = bySize
+            ? schedulesForSize(size).map(function (s) { return { sched: s, size: size }; })
+            : sizesForSchedule(state.sched).map(function (z) { return { sched: sch, size: z }; });
+
+        rows.forEach(function (r) {
+            var p = props(r.size, r.sched.id);
+            if (!p) return;
+            var tr = document.createElement("tr");
+            var current = bySize ? r.sched.id === state.sched : r.size.nps === state.size;
+            if (current) tr.className = "is-current";
+            var first = bySize ? [r.sched.label] : [r.size.nps, String(r.size.dn)];
+            first.concat([len(p.od), len(p.wall), len(p.id), mass(p.mass), cap(p.cap), mass(p.full)])
+                .forEach(function (v) {
+                    var td = document.createElement("td");
+                    td.textContent = v;
+                    tr.appendChild(td);
+                });
+            tbody.appendChild(tr);
+        });
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    var sizeSel = document.getElementById("size-sel");
+    var schedSel = document.getElementById("sched-sel");
+
+    function buildSizeOptions() {
+        while (sizeSel.firstChild) sizeSel.removeChild(sizeSel.firstChild);
+        var available = SIZES.filter(function (z) { return schedulesForSize(z).length > 0; });
+        available.forEach(function (z) {
+            var o = document.createElement("option");
+            o.value = z.nps;
+            o.textContent = "NPS " + z.nps + "  ·  DN " + z.dn;
+            sizeSel.appendChild(o);
+        });
+        // Keep the chosen size if the standard still makes it.
+        if (!available.some(function (z) { return z.nps === state.size; })) {
+            state.size = available[0].nps;
+        }
+        sizeSel.value = state.size;
+    }
+
+    function buildScheduleOptions() {
+        while (schedSel.firstChild) schedSel.removeChild(schedSel.firstChild);
+        var size = sizeByName(state.size);
+        var available = schedulesForSize(size);
+        available.forEach(function (s) {
+            var o = document.createElement("option");
+            o.value = s.id;
+            o.textContent = s.label;
+            schedSel.appendChild(o);
+        });
+        /* Not every size is made in every schedule, so a schedule that has just
+              become unavailable falls back to the nearest wall rather than to the
+              top of the list, which keeps the picture roughly where it was. */
+        if (!available.some(function (s) { return s.id === state.sched; })) {
+            var wanted = size.t[state.sched];
+            var best = available[0];
+            if (wanted !== undefined) {
+                available.forEach(function (s) {
+                    if (Math.abs(size.t[s.id] - wanted) < Math.abs(size.t[best.id] - wanted)) best = s;
+                });
+            } else {
+                var mid = available[Math.floor(available.length / 2)];
+                best = schedById("40") && size.t["40"] !== undefined ? schedById("40")
+                     : schedById("40S") && size.t["40S"] !== undefined ? schedById("40S") : mid;
+            }
+            state.sched = best.id;
+        }
+        schedSel.value = state.sched;
+    }
+
+    document.getElementById("std-sel").addEventListener("change", function (e) {
+        state.std = e.target.value;
+        buildSizeOptions();
+        buildScheduleOptions();
+        render();
+    });
+    document.getElementById("units-sel").addEventListener("change", function (e) {
+        state.units = e.target.value;
+        render();
+    });
+    document.getElementById("view-sel").addEventListener("change", function (e) {
+        state.view = e.target.value;
+        render();
+    });
+    sizeSel.addEventListener("change", function (e) {
+        state.size = e.target.value;
+        buildScheduleOptions();
+        render();
+    });
+    schedSel.addEventListener("change", function (e) {
+        state.sched = e.target.value;
+        render();
+    });
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          Dimensional data is the kind that looks right when it is wrong,
+          so the invariants below are asserted on every load. They cover
+          the shape of the data, the relationships between the schedule
+          designations, and figures taken from the published tables.
+          ============================================================ */
+
+    function massKgM(size, id) {
+        var t = size.t[id];
+        return t === undefined ? null : STEEL_KG_M * t * (size.odMm - t);
+    }
+    function massLbFt(size, id) {
+        var t = wallIn(size, id);
+        return t === undefined ? null : STEEL_LB_FT * t * (size.odIn - t);
+    }
+    function npsValue(nps) {
+        var m = /^(\d+)-(\d+)\/(\d+)$/.exec(nps);
+        if (m) return Number(m[1]) + Number(m[2]) / Number(m[3]);
+        m = /^(\d+)\/(\d+)$/.exec(nps);
+        if (m) return Number(m[1]) / Number(m[2]);
+        return Number(nps);
+    }
+
+    // [NPS, schedule, wall in mm] -- read off the published tables.
+    var PINNED_WALL = [["1/2", "40", 2.77], ["1/2", "80", 3.73], ["2", "40", 3.91],
+                       ["6", "40", 7.11], ["8", "40", 8.18], ["8", "80", 12.7],
+                       ["8", "XXS", 22.23], ["12", "80", 17.48], ["24", "40", 17.48],
+                       ["10", "160", 28.58], ["1/8", "40", 1.73]];
+    // [NPS, schedule, lb/ft] -- published plain end weights.
+    var PINNED_LB = [["1/2", "40", 0.85], ["2", "40", 3.65], ["6", "40", 18.97],
+                     ["8", "40", 28.55], ["10", "40", 40.48], ["12", "40", 53.52],
+                     ["8", "80", 43.39], ["24", "20", 94.62]];
+    // [NPS, schedule, kg/m]
+    var PINNED_KG = [["8", "40", 42.55], ["2", "40", 5.44], ["24", "40", 255.41]];
+
+    function runSelfChecks() {
+        var results = [], failures = [];
+        function check(name, ok, detail) {
+            results.push(ok);
+            if (!ok) failures.push(name + (detail ? " — " + detail : ""));
+        }
+        function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+        var saved = { std: state.std, units: state.units, size: state.size, sched: state.sched };
+
+        /* -- shape of the data ------------------------------------------ */
+        var lastNps = -1, lastDn = -1;
+        SIZES.forEach(function (z) {
+            var tag = "NPS " + z.nps + ": ";
+            var v = npsValue(z.nps);
+            check(tag + "nominal size parses and ascends", v > lastNps, String(v));
+            check(tag + "DN ascends", z.dn > lastDn);
+            lastNps = v; lastDn = z.dn;
+            check(tag + "has an inch and a millimetre outside diameter",
+                  z.odIn > 0 && z.odMm > 0);
+            check(tag + "the two outside diameters agree",
+                  near(z.odIn * MM_PER_IN, z.odMm, 0.5),
+                  (z.odIn * MM_PER_IN).toFixed(2) + " vs " + z.odMm);
+            if (z.odMm19 !== undefined) {
+                check(tag + "the B36.19M outside diameter also agrees",
+                      near(z.odIn * MM_PER_IN, z.odMm19, 0.5));
+                check(tag + "only NPS 10 and 12 are rounded differently",
+                      z.nps === "10" || z.nps === "12");
+            }
+            var walls = Object.keys(z.t);
+            check(tag + "has at least one schedule", walls.length > 0);
+            walls.forEach(function (id) {
+                var t = z.t[id];
+                check(tag + id + " wall is positive", t > 0);
+                check(tag + id + " leaves a bore", 2 * t < z.odMm, "t=" + t + " OD=" + z.odMm);
+                check(tag + id + " wall round-trips to inches and back",
+                      near(wallIn(z, id) * MM_PER_IN, t, 0.02),
+                      (wallIn(z, id) * MM_PER_IN).toFixed(3) + " vs " + t);
+                check(tag + id + " is a known schedule", schedById(id) !== null);
+            });
+        });
+
+        /* -- wall grows with the schedule number ------------------------ */
+        var numbered = ["5", "10", "20", "30", "40", "60", "80", "100", "120", "140", "160"];
+        SIZES.forEach(function (z) {
+            var prev = 0, ok = true, where = "";
+            numbered.forEach(function (id) {
+                var t = z.t[id];
+                if (t === undefined) return;
+                if (t < prev) { ok = false; where = id; }
+                prev = t;
+            });
+            check("NPS " + z.nps + ": wall never falls as the schedule rises", ok, where);
+        });
+
+        /* -- the designations are exactly what the notes claim ----------
+              STD follows Schedule 40 to NPS 10 and then holds at 9.53 mm;
+              XS follows Schedule 80 to NPS 8 and then holds at 12.7 mm. */
+        SIZES.forEach(function (z) {
+            var v = npsValue(z.nps), tag = "NPS " + z.nps + ": ";
+            if (z.t.STD !== undefined) {
+                if (v <= 10) check(tag + "STD is Schedule 40", z.t.STD === z.t["40"],
+                                   z.t.STD + " vs " + z.t["40"]);
+                else check(tag + "STD holds at 9.53", z.t.STD === 9.53, String(z.t.STD));
+            }
+            if (z.t.XS !== undefined) {
+                if (v <= 8) check(tag + "XS is Schedule 80", z.t.XS === z.t["80"],
+                                  z.t.XS + " vs " + z.t["80"]);
+                else check(tag + "XS holds at 12.7", z.t.XS === 12.7, String(z.t.XS));
+            }
+            // 5S is Schedule 5, 40S is STD and 80S is XS wherever both are listed;
+            // 10S is Schedule 10 apart from NPS 14 to 22.
+            [["5S", "5"], ["40S", "STD"], ["80S", "XS"]].forEach(function (pair) {
+                if (z.t[pair[0]] !== undefined && z.t[pair[1]] !== undefined) {
+                    check(tag + pair[0] + " equals " + pair[1],
+                          z.t[pair[0]] === z.t[pair[1]],
+                          z.t[pair[0]] + " vs " + z.t[pair[1]]);
+                }
+            });
+            if (z.t["10S"] !== undefined && z.t["10"] !== undefined) {
+                var thinner = v >= 14 && v <= 22;
+                check(tag + "10S " + (thinner ? "is thinner than" : "equals") + " Schedule 10",
+                      thinner ? z.t["10S"] < z.t["10"] : z.t["10S"] === z.t["10"],
+                      z.t["10S"] + " vs " + z.t["10"]);
+            }
+        });
+
+        /* -- pinned figures from the published tables ------------------- */
+        PINNED_WALL.forEach(function (t) {
+            var z = sizeByName(t[0]);
+            check("pinned wall NPS " + t[0] + " " + t[1], z && z.t[t[1]] === t[2],
+                  z ? String(z.t[t[1]]) : "size missing");
+        });
+        PINNED_LB.forEach(function (t) {
+            var z = sizeByName(t[0]), got = z && massLbFt(z, t[1]);
+            check("pinned weight NPS " + t[0] + " " + t[1] + " lb/ft",
+                  got !== null && near(got, t[2], 0.01), got === null ? "missing" : got.toFixed(3));
+        });
+        PINNED_KG.forEach(function (t) {
+            var z = sizeByName(t[0]), got = z && massKgM(z, t[1]);
+            check("pinned weight NPS " + t[0] + " " + t[1] + " kg/m",
+                  got !== null && near(got, t[2], 0.01), got === null ? "missing" : got.toFixed(3));
+        });
+
+        /* -- derived properties hang together in both unit systems ------ */
+        ["metric", "imperial"].forEach(function (u) {
+            state.units = u;
+            [["8", "40"], ["1/2", "80"], ["24", "40"], ["2", "160"]].forEach(function (t) {
+                var z = sizeByName(t[0]);
+                if (!z || z.t[t[1]] === undefined) return;
+                var p = props(z, t[1]), tag = u + " NPS " + t[0] + " " + t[1] + ": ";
+                check(tag + "bore is the diameter less two walls",
+                      near(p.id, p.od - 2 * p.wall, 1e-9));
+                check(tag + "area follows the bore",
+                      near(p.area, Math.PI / 4 * p.id * p.id, 1e-9));
+                check(tag + "full weight is pipe plus water",
+                      near(p.full, p.mass + p.water, 1e-9));
+                check(tag + "everything is positive",
+                      p.id > 0 && p.area > 0 && p.mass > 0 && p.cap > 0);
+            });
+        });
+
+        /* -- the two unit systems describe the same pipe ----------------
+              They cannot agree exactly: the standard's own metric and imperial
+              weight constants imply densities about 0.06% apart, and the
+              dimensions are rounded independently. A tenth of a percent is
+              the right order; more than half a percent is an error. */
+        SIZES.forEach(function (z) {
+            Object.keys(z.t).forEach(function (id) {
+                state.units = "metric";
+                var m = props(z, id);
+                state.units = "imperial";
+                var i = props(z, id);
+                check("NPS " + z.nps + " " + id + ": the unit systems agree on weight",
+                      near(m.mass * 0.671968975, i.mass, Math.max(0.005, i.mass * 0.006)),
+                      (m.mass * 0.671968975).toFixed(3) + " vs " + i.mass.toFixed(3));
+                check("NPS " + z.nps + " " + id + ": the unit systems agree on bore",
+                      near(m.id / MM_PER_IN, i.id, 0.02),
+                      (m.id / MM_PER_IN).toFixed(3) + " vs " + i.id.toFixed(3));
+            });
+        });
+
+        /* -- capacity, checked against the geometry rather than restated - */
+        state.units = "metric";
+        var z8 = sizeByName("8"), p8 = props(z8, "40");
+        check("NPS 8 Sch 40 holds 32.28 litres a metre", near(p8.cap, 32.28, 0.02), p8.cap.toFixed(3));
+        state.units = "imperial";
+        var i8 = props(z8, "40");
+        check("NPS 8 Sch 40 holds 2.60 US gallons a foot", near(i8.cap, 2.60, 0.01), i8.cap.toFixed(3));
+
+        /* -- every schedule in the list is used by at least one size ---- */
+        SCHEDULES.forEach(function (s) {
+            check("schedule " + s.id + " is used by some size", sizesForSchedule(s.id).length > 0);
+        });
+
+        state.std = saved.std; state.units = saved.units;
+        state.size = saved.size; state.sched = saved.sched;
+
+        var passed = results.filter(Boolean).length;
+        var out = document.getElementById("selfcheck");
+        if (failures.length) {
+            out.className = "selfcheck bad";
+            out.textContent = "✖ " + failures.length + " of " + results.length
+                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
+                + (failures.length > 6 ? "; …" : "");
+            if (window.console) console.error("Pipe schedule self-checks failed:", failures);
+        } else {
+            out.className = "selfcheck ok";
+            out.textContent = "✓ " + passed + " self-checks passed across " + SIZES.length
+                + " sizes and " + SCHEDULES.length + " schedules.";
+        }
+        window.__pipeSelfChecks = { passed: passed, total: results.length, failures: failures };
+    }
+
+    buildSizeOptions();
+    buildScheduleOptions();
+    render();
+    runSelfChecks();
+})();
+</script>
+</body>
+</html>
