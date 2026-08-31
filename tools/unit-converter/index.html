@@ -4,59 +4,123 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Unit Converter — Hash Brown Engineering</title>
-    <meta name="description" content="Convert between pressure, temperature, flow rate, length, mass, volume, density and viscosity units used in process and flow assurance engineering.">
+    <meta name="description" content="Convert between the units used in process and flow assurance engineering — pressure including gauge, temperature, flow, viscosity, thermal properties, API gravity and standard gas volumes.">
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/style.css">
     <style>
-        /* Tool-specific layout: the result panel and the swap control. */
-        .converter { margin-block-start: 2.5rem; }
+        *, *::before, *::after { box-sizing: border-box; }
+
+        .converter { margin-block-start: 2.25rem; }
+
+        /* ---- the settings strip: things that change how a result is read,
+                 kept visually subordinate to the conversion itself ---- */
+        .settings {
+            display: flex; flex-wrap: wrap; gap: 0.9rem 1.4rem;
+            align-items: flex-end;
+            margin-block-start: 1.5rem;
+            padding-block-start: 1.1rem;
+            border-block-start: 1px solid var(--rule);
+        }
+        .settings .field { margin-block-end: 0; }
+        .settings label {
+            font-size: 0.7rem; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--ink-faint); margin-block-end: 0.35rem; display: block;
+        }
+        .settings select { width: auto; font-size: 0.85rem; padding: 0.4rem 0.6rem; }
+        .settings .field[hidden] { display: none; }
 
         .swap-row { display: flex; justify-content: center; margin-block: -0.35rem 0.85rem; }
-
         .swap {
-            background: none;
-            border: 1px solid var(--rule);
-            color: var(--ink-muted);
-            border-radius: 999px;
-            padding: 0.3rem 0.85rem;
-            font-size: 0.8rem;
-            font-weight: 500;
-            letter-spacing: 0.04em;
+            background: none; border: 1px solid var(--rule); color: var(--ink-muted);
+            border-radius: 999px; padding: 0.3rem 0.85rem;
+            font-size: 0.8rem; font-weight: 500; letter-spacing: 0.04em; width: auto;
         }
         .swap:hover {
-            background: var(--accent-soft);
-            color: var(--accent);
-            border-color: var(--accent);
-            filter: none;
+            background: var(--accent-soft); color: var(--accent);
+            border-color: var(--accent); filter: none;
         }
 
         .result {
-            display: block;
-            margin-block-start: 1.75rem;
-            padding: 1.4rem 1.5rem;
-            background: var(--accent-soft);
-            border-radius: 6px;
+            display: block; margin-block-start: 1.75rem;
+            padding: 1.4rem 1.5rem; background: var(--accent-soft); border-radius: 6px;
+            position: relative;
         }
-
         .result-value {
             font-family: var(--font-mono);
-            font-size: clamp(1.4rem, 5vw, 1.9rem);
-            line-height: 1.25;
-            word-break: break-word;
+            font-size: clamp(1.3rem, 4.6vw, 1.85rem);
+            line-height: 1.25; word-break: break-word;
+            padding-inline-end: 4.5rem;
         }
-
         .result-value.is-error {
-            font-family: var(--font-sans);
-            font-size: 1.05rem;
-            color: var(--ink-muted);
+            font-family: var(--font-sans); font-size: 1.05rem; color: var(--ink-muted);
+            padding-inline-end: 0;
         }
-
         .result-restated {
-            margin-block-end: 0.45rem;
-            font-size: 0.875rem;
-            color: var(--ink-muted);
+            margin-block-end: 0.45rem; font-size: 0.875rem; color: var(--ink-muted);
         }
         .result-restated:empty { display: none; }
+
+        .copy {
+            position: absolute; top: 1rem; right: 1rem; width: auto;
+            background: none; border: 1px solid var(--rule); color: var(--ink-muted);
+            border-radius: 999px; padding: 0.28rem 0.7rem;
+            font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+        }
+        .copy:hover { background: var(--surface); color: var(--accent); border-color: var(--accent); filter: none; }
+        .copy[hidden] { display: none; }
+
+        /* ---- every unit at once ---- */
+        section.block { margin-block-start: 2.25rem; }
+        section.block h2 {
+            font-family: var(--font-serif); font-size: 1.15rem; font-weight: 400;
+            color: var(--ink); margin: 0 0 0.15rem;
+        }
+        .block-note { color: var(--ink-faint); font-size: 0.85rem; margin: 0 0 0.85rem; }
+
+        .tbl-scroll { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+        th, td { text-align: right; padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+        th:first-child, td:first-child { text-align: left; }
+        thead th {
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em;
+            color: var(--ink-muted); text-transform: uppercase;
+        }
+        tbody td { font-variant-numeric: tabular-nums; color: var(--ink); }
+        tbody td:first-child { color: var(--ink-muted); }
+        tbody tr.is-from td { background: var(--accent-soft); }
+        tbody tr.is-to td { font-weight: 600; }
+        tbody td .unit-name { color: var(--ink-faint); font-weight: 400; }
+
+        /* ---- assumptions panel, matching the other tools on this site ---- */
+        details.notes { margin-block-start: 2rem; }
+        details.notes > summary {
+            cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--ink-muted);
+            padding: 0.35rem 0; list-style: revert;
+        }
+        details.notes ul { margin: 0.4rem 0 0; padding-left: 1.25rem; color: var(--ink-muted); font-size: 0.85rem; }
+        details.notes li { margin-bottom: 0.4rem; }
+        .figures { margin: 0.6rem 0 0.25rem; }
+        .figures h4 {
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--ink-faint); margin: 0 0 0.5rem;
+        }
+        .figures dl {
+            display: grid; grid-template-columns: minmax(10rem, auto) 1fr; gap: 0.25rem 1rem;
+            margin: 0 0 0.75rem; font-size: 0.8rem;
+        }
+        .figures dt { color: var(--ink-muted); }
+        .figures dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+        .selfcheck { font-size: 0.78rem; margin: 0.75rem 0 0; font-variant-numeric: tabular-nums; }
+        .selfcheck.ok { color: #0ca30c; }
+        .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+
+        .disclaimer {
+            margin-block-start: 2.25rem; font-size: 0.85rem; color: var(--ink-faint); text-wrap: pretty;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition-duration: 0.01ms !important; }
+        }
     </style>
 </head>
 <body>
@@ -68,7 +132,9 @@
         <h1>Unit Converter</h1>
         <p class="lede">
             Conversions between the units that turn up in process and flow
-            assurance work. Everything runs in your browser; nothing is sent
+            assurance work &mdash; including gauge pressure, API gravity and
+            standard gas volumes, which need an assumption stated before they
+            mean anything. Everything runs in your browser; nothing is sent
             anywhere.
         </p>
     </header>
@@ -100,9 +166,109 @@
         </div>
 
         <output class="result" id="result">
+            <button class="copy" type="button" id="copy" hidden>Copy</button>
             <div class="result-restated" id="result-restated"></div>
             <div class="result-value" id="result-value">&mdash;</div>
         </output>
+
+        <div class="settings">
+            <div class="field">
+                <label for="sigfigs">Significant figures</label>
+                <select id="sigfigs">
+                    <option value="4">4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
+                    <option value="10" selected>10</option>
+                    <option value="12">12</option>
+                </select>
+            </div>
+            <div class="field" id="atm-field" hidden>
+                <label for="atm">Atmospheric reference, for gauge pressure</label>
+                <select id="atm">
+                    <option value="101325" selected>1 atm &mdash; 101.325 kPa</option>
+                    <option value="100000">1 bar &mdash; 100 kPa</option>
+                    <option value="101352.932">14.7 psi &mdash; 101.353 kPa</option>
+                </select>
+            </div>
+        </div>
+
+        <section class="block">
+            <h2>Every unit at once</h2>
+            <p class="block-note" id="all-note"></p>
+            <div class="tbl-scroll">
+                <table id="all-units"></table>
+            </div>
+        </section>
+
+        <details class="notes">
+            <summary>Assumptions &amp; sources</summary>
+            <div class="figures" id="figures"></div>
+            <ul>
+                <li><strong>Conversions are exact where the definition is exact.</strong> The inch is
+                    25.4&nbsp;mm, the pound is 0.453 592 37&nbsp;kg, the barrel is 42 US gallons of
+                    231&nbsp;in&sup3; each, and pounds-force follow from standard gravity,
+                    9.806 65&nbsp;m/s&sup2;. Everything derived from those is exact too, and the
+                    self-checks below assert it rather than trusting the typing.</li>
+                <li><strong>Gauge pressure needs an atmosphere.</strong> barg, psig and kPag are
+                    absolute pressure less whatever the atmosphere is taken to be, and that is a
+                    choice, not a constant &mdash; it is selectable above and defaults to the standard
+                    atmosphere of 101.325&nbsp;kPa. Real gauges read against the actual local
+                    barometric pressure, which moves with the weather and with altitude, so a gauge
+                    reading converted to absolute is only ever as good as that assumption. The
+                    unsuffixed units &mdash; bar, psi, kPa &mdash; are absolute throughout.</li>
+                <li><strong>Negative absolute values are refused</strong> rather than converted.
+                    A temperature below &minus;273.15&nbsp;&deg;C, or a gauge pressure more negative
+                    than the atmosphere, has no absolute counterpart, and the earlier version of this
+                    tool would cheerfully report one.</li>
+                <li><strong>mmHg and torr are not the same unit.</strong> A millimetre of mercury is
+                    defined from the density of mercury and standard gravity; a torr is exactly
+                    1/760 of a standard atmosphere. They differ by about one part in seven million,
+                    which never matters in practice and is preserved here anyway.</li>
+                <li><strong>The awkward ones, spelled out.</strong> The calorie here is the
+                    thermochemical calorie of exactly 4.184&nbsp;J, not the International Table
+                    calorie of 4.1868&nbsp;J. The BTU is the International Table BTU. The therm is
+                    the UK legal value, which is very slightly not 10&#8309; BTU. Horsepower is
+                    mechanical &mdash; 550&nbsp;ft&middot;lbf/s &mdash; not metric PS
+                    (735.5&nbsp;W) or electrical (746&nbsp;W). The inch of water is at
+                    4&nbsp;&deg;C; the 60&nbsp;&deg;F definition is about 0.1% smaller.</li>
+                <li><strong>Some units are listed twice on purpose.</strong> The centipoise and the
+                    millipascal second are the same unit, as are the centistokes and mm&sup2;/s, and
+                    kg/L and g/cm&sup3;. Both spellings appear because both turn up on datasheets.
+                    The self-checks assert that each pair really is identical.</li>
+                <li><strong>API gravity</strong> is 141.5/SG &minus; 131.5, where SG is relative to
+                    water at 60&nbsp;&deg;F, taken here as 999.016&nbsp;kg/m&sup3;. It is defined for
+                    liquids near the density of water and goes to nonsense outside that range: below
+                    &minus;131.5&nbsp;&deg;API the formula implies a negative density, and that is
+                    refused. 10&nbsp;&deg;API is exactly the density of water by construction.</li>
+                <li><strong>Standard gas volumes are a temperature and a pressure, not a volume.</strong>
+                    A standard cubic foot is taken at 60&nbsp;&deg;F and 14.696&nbsp;psia, a standard
+                    cubic metre at 15&nbsp;&deg;C and 101.325&nbsp;kPa, and a normal cubic metre at
+                    0&nbsp;&deg;C and 101.325&nbsp;kPa. Converting between them is the ideal gas law
+                    on those conditions, so 1&nbsp;Nm&sup3; is 1.0549&nbsp;sm&sup3; purely because
+                    0&nbsp;&deg;C is colder than 15&nbsp;&deg;C. Contracts sometimes specify other
+                    bases &mdash; 14.73&nbsp;psia is common in US gas sales &mdash; and the difference
+                    is real money, so check the contract rather than this page. Compressibility is
+                    ignored, which is fine at these conditions and not at reservoir ones.</li>
+                <li><strong>Gas&ndash;oil ratio</strong> follows from the same standard conditions,
+                    with the oil volume in stock tank barrels or cubic metres. It inherits every
+                    assumption above.</li>
+                <li><strong>Rounding is display only.</strong> Results are shown to the number of
+                    significant figures selected above, with the digits grouped for readability, but
+                    every conversion is done in full double precision. Swapping the units carries the
+                    unrounded result into the input rather than the figure on screen, which is why the
+                    box can fill with digits after a swap and why swapping twice returns you exactly
+                    where you started.</li>
+                <li><strong>Not covered:</strong> anything needing a fluid property to convert
+                    &mdash; volumetric to mass flow, pressure to head, mass to mole &mdash; because
+                    that is a calculation with inputs rather than a conversion. Currency, and any
+                    unit whose definition depends on a substance not named above.</li>
+            </ul>
+            <p class="selfcheck" id="selfcheck"></p>
+        </details>
+
+        <p class="disclaimer">A reference tool, not a design document. The definitions and
+            assumptions above are stated so you can check them against whatever standard or
+            contract actually governs your work.</p>
     </main>
 
     <footer class="site-footer">
@@ -116,255 +282,838 @@
 (function () {
     "use strict";
 
-    /* Each unit converts to the base SI unit of its quantity by one factor:
-       value_in_base = value * factor. Temperature is the exception, and
-       supplies explicit to/from functions instead. */
-    var QUANTITIES = {
-        "Pressure": [
-            ["Pa — pascal", 1],
-            ["kPa — kilopascal", 1e3],
-            ["MPa — megapascal", 1e6],
-            ["bar", 1e5],
-            ["mbar — millibar", 100],
-            ["psi — lbf/in²", 6894.757293168361],
-            ["atm — standard atmosphere", 101325],
-            ["mmHg — millimetre of mercury", 133.322387415],
-            ["torr", 101325 / 760],
-            ["inH₂O — inch of water (4 °C)", 249.0889],
-            ["kgf/cm²", 98066.5]
-        ],
-        "Temperature": [
-            ["°C — Celsius", {
-                to: function (c) { return c + 273.15; },
-                from: function (k) { return k - 273.15; }
-            }],
-            ["K — kelvin", {
-                to: function (k) { return k; },
-                from: function (k) { return k; }
-            }],
-            ["°F — Fahrenheit", {
-                to: function (f) { return (f - 32) * 5 / 9 + 273.15; },
-                from: function (k) { return (k - 273.15) * 9 / 5 + 32; }
-            }],
-            ["°R — Rankine", {
-                to: function (r) { return r * 5 / 9; },
-                from: function (k) { return k * 9 / 5; }
-            }]
-        ],
-        "Length": [
-            ["m — metre", 1],
-            ["mm — millimetre", 1e-3],
-            ["cm — centimetre", 1e-2],
-            ["km — kilometre", 1e3],
-            ["in — inch", 0.0254],
-            ["ft — foot", 0.3048],
-            ["yd — yard", 0.9144],
-            ["mi — mile", 1609.344],
-            ["nmi — nautical mile", 1852]
-        ],
-        "Mass": [
-            ["kg — kilogram", 1],
-            ["g — gram", 1e-3],
-            ["t — tonne", 1e3],
-            ["lb — pound", 0.45359237],
-            ["oz — ounce", 0.028349523125],
-            ["short ton (US)", 907.18474],
-            ["long ton (UK)", 1016.0469088]
-        ],
-        "Volume": [
-            ["m³ — cubic metre", 1],
-            ["L — litre", 1e-3],
-            ["mL — millilitre", 1e-6],
-            ["ft³ — cubic foot", 0.028316846592],
-            ["bbl — oil barrel", 0.158987294928],
-            ["gal (US)", 0.003785411784],
-            ["gal (imperial)", 0.00454609]
-        ],
-        "Volumetric flow": [
-            ["m³/s", 1],
-            ["m³/h", 1 / 3600],
-            ["m³/d", 1 / 86400],
-            ["L/s", 1e-3],
-            ["L/min", 1e-3 / 60],
-            ["ft³/s", 0.028316846592],
-            ["ft³/h", 0.028316846592 / 3600],
-            ["bbl/d — barrels per day", 0.158987294928 / 86400],
-            ["gpm (US) — gallons per minute", 0.003785411784 / 60]
-        ],
-        "Mass flow": [
-            ["kg/s", 1],
-            ["kg/h", 1 / 3600],
-            ["t/h — tonne per hour", 1000 / 3600],
-            ["t/d — tonne per day", 1000 / 86400],
-            ["lb/s", 0.45359237],
-            ["lb/h", 0.45359237 / 3600]
-        ],
-        "Density": [
-            ["kg/m³", 1],
-            ["g/cm³", 1000],
-            ["kg/L", 1000],
-            ["lb/ft³", 16.018463373960138],
-            ["lb/gal (US)", 119.82642731689663],
-            ["lb/bbl", 2.853010174]
-        ],
-        "Dynamic viscosity": [
-            ["Pa·s", 1],
-            ["mPa·s", 1e-3],
-            ["cP — centipoise", 1e-3],
-            ["P — poise", 0.1],
-            ["lb/(ft·s)", 1.4881639435695537],
-            ["lbf·s/ft²", 47.88025898033584]
-        ],
-        "Kinematic viscosity": [
-            ["m²/s", 1],
-            ["mm²/s", 1e-6],
-            ["cSt — centistokes", 1e-6],
-            ["St — stokes", 1e-4],
-            ["ft²/s", 0.09290304]
-        ],
-        "Energy": [
-            ["J — joule", 1],
-            ["kJ — kilojoule", 1e3],
-            ["MJ — megajoule", 1e6],
-            ["kWh — kilowatt hour", 3.6e6],
-            ["cal — calorie", 4.184],
-            ["kcal — kilocalorie", 4184],
-            ["BTU", 1055.05585262],
-            ["MMBTU", 1055.05585262e6],
-            ["therm (UK)", 105505585.257348]
-        ],
-        "Power": [
-            ["W — watt", 1],
-            ["kW — kilowatt", 1e3],
-            ["MW — megawatt", 1e6],
-            ["hp — mechanical horsepower", 745.6998715822702],
-            ["BTU/h", 1055.05585262 / 3600],
-            ["MMBTU/h", 1055.05585262e6 / 3600]
-        ]
+    /* ============================================================
+          EXACT DEFINITIONS
+          ------------------------------------------------------------
+          Everything else is derived from these, so a factor can only be
+          wrong if one of these is, and the self-checks at the foot of the
+          file assert the derivations against the definitions.
+          ============================================================ */
+    var IN   = 0.0254;                    // metre, exactly
+    var FT   = IN * 12;
+    var YD   = FT * 3;
+    var MILE = FT * 5280;
+    var LB   = 0.45359237;                // kilogram, exactly
+    var G    = 9.80665;                   // standard gravity, m/s2, exactly
+    var LBF  = LB * G;
+    var PSI  = LBF / (IN * IN);
+    var USGAL = 231 * IN * IN * IN;
+    var BBL  = 42 * USGAL;
+    var BTU  = 1055.05585262;             // International Table
+    var ATM  = 101325;                    // pascal, exactly
+    var WATER_60F = 999.016;              // kg/m3, water at 60 F, for specific gravity
+    var PI = Math.PI;
+
+    /* Standard gas conditions. A standard volume is a quantity of gas, not a
+          volume, so converting between the bases is the ideal gas law applied to
+          the conditions each one names. */
+    var T_SCF = (60 - 32) * 5 / 9 + 273.15;   // 60 F in kelvin
+    var P_SCF = 14.696 * PSI;                 // psia in pascal
+    var T_SM3 = 288.15, T_NM3 = 273.15, P_STD = ATM;
+    var SCF_TO_SM3 = (FT * FT * FT) * (P_SCF / P_STD) * (T_SM3 / T_SCF);
+    var NM3_TO_SM3 = (T_SM3 / T_NM3);
+
+    var state = {
+        quantity: "Pressure",
+        from: 0,
+        to: 1,
+        value: "1",
+        sigFigs: 10,
+        patm: ATM
     };
+
+    /* A unit is either a plain factor to the quantity's base unit, or an
+          explicit pair of functions where the relationship is not a bare scaling.
+          Gauge pressure reads state.patm at conversion time rather than closing
+          over it, so changing the reference re-converts without rebuilding. */
+    function gauge(scale) {
+        return { to: function (v) { return v * scale + state.patm; },
+                 from: function (b) { return (b - state.patm) / scale; } };
+    }
+
+    var QUANTITIES = [
+        { name: "Pressure", group: "Pressure & flow", minBase: 0,
+          baseNote: "Unsuffixed units are absolute; barg, psig and kPag are gauge.",
+          units: [
+            ["Pa — pascal", 1], ["kPa — kilopascal", 1e3], ["MPa — megapascal", 1e6],
+            ["bar", 1e5], ["mbar — millibar", 100], ["psi — lbf/in²", PSI],
+            ["atm — standard atmosphere", ATM],
+            ["mmHg — millimetre of mercury", 133.322387415], ["torr", ATM / 760],
+            ["inH₂O — inch of water (4 °C)", 249.0889], ["kgf/cm²", G / 1e-4],
+            ["barg — bar gauge", gauge(1e5)], ["psig — psi gauge", gauge(PSI)],
+            ["kPag — kilopascal gauge", gauge(1e3)]
+          ] },
+        { name: "Pressure gradient", group: "Pressure & flow",
+          units: [
+            ["Pa/m", 1], ["kPa/m", 1e3], ["MPa/m", 1e6], ["bar/m", 1e5],
+            ["psi/ft", PSI / FT], ["psi/100 ft", PSI / FT / 100], ["kPa/100 m", 10]
+          ] },
+        { name: "Volumetric flow", group: "Pressure & flow",
+          units: [
+            ["m³/s", 1], ["m³/h", 1 / 3600], ["m³/d", 1 / 86400],
+            ["L/s", 1e-3], ["L/min", 1e-3 / 60],
+            ["ft³/s", FT * FT * FT], ["ft³/h", FT * FT * FT / 3600],
+            ["bbl/d — barrels per day", BBL / 86400],
+            ["gpm (US) — gallons per minute", USGAL / 60]
+          ] },
+        { name: "Mass flow", group: "Pressure & flow",
+          units: [
+            ["kg/s", 1], ["kg/h", 1 / 3600], ["t/h — tonne per hour", 1000 / 3600],
+            ["t/d — tonne per day", 1000 / 86400], ["lb/s", LB], ["lb/h", LB / 3600]
+          ] },
+        { name: "Dynamic viscosity", group: "Pressure & flow",
+          units: [
+            ["Pa·s", 1], ["mPa·s", 1e-3], ["cP — centipoise", 1e-3], ["P — poise", 0.1],
+            ["lb/(ft·s)", LB / FT], ["lbf·s/ft²", LBF / (FT * FT)]
+          ] },
+        { name: "Kinematic viscosity", group: "Pressure & flow",
+          units: [
+            ["m²/s", 1], ["mm²/s", 1e-6], ["cSt — centistokes", 1e-6],
+            ["St — stokes", 1e-4], ["ft²/s", FT * FT]
+          ] },
+
+        { name: "Length", group: "Mechanical",
+          units: [
+            ["m — metre", 1], ["mm — millimetre", 1e-3], ["cm — centimetre", 1e-2],
+            ["km — kilometre", 1e3], ["in — inch", IN], ["ft — foot", FT],
+            ["yd — yard", YD], ["mi — mile", MILE], ["nmi — nautical mile", 1852]
+          ] },
+        { name: "Area", group: "Mechanical",
+          units: [
+            ["m² — square metre", 1], ["mm²", 1e-6], ["cm²", 1e-4], ["km²", 1e6],
+            ["in²", IN * IN], ["ft²", FT * FT], ["yd²", YD * YD],
+            ["acre", 4840 * YD * YD], ["ha — hectare", 1e4], ["mi²", MILE * MILE]
+          ] },
+        { name: "Volume", group: "Mechanical",
+          units: [
+            ["m³ — cubic metre", 1], ["L — litre", 1e-3], ["mL — millilitre", 1e-6],
+            ["ft³ — cubic foot", FT * FT * FT], ["bbl — oil barrel", BBL],
+            ["gal (US)", USGAL], ["gal (imperial)", 0.00454609]
+          ] },
+        { name: "Mass", group: "Mechanical",
+          units: [
+            ["kg — kilogram", 1], ["g — gram", 1e-3], ["t — tonne", 1e3],
+            ["lb — pound", LB], ["oz — ounce", LB / 16],
+            ["short ton (US)", 2000 * LB], ["long ton (UK)", 2240 * LB]
+          ] },
+        { name: "Density", group: "Mechanical", minBase: 0,
+          units: [
+            ["kg/m³", 1], ["g/cm³", 1000], ["kg/L", 1000],
+            ["lb/ft³", LB / (FT * FT * FT)], ["lb/gal (US)", LB / USGAL], ["lb/bbl", LB / BBL]
+          ] },
+        { name: "Force", group: "Mechanical",
+          units: [
+            ["N — newton", 1], ["kN — kilonewton", 1e3], ["MN — meganewton", 1e6],
+            ["lbf — pound-force", LBF], ["kgf — kilogram-force", G],
+            ["tonne-force", 1000 * G], ["dyn — dyne", 1e-5]
+          ] },
+        { name: "Torque", group: "Mechanical",
+          units: [
+            ["N·m", 1], ["kN·m", 1e3], ["lbf·ft", LBF * FT], ["lbf·in", LBF * IN],
+            ["kgf·m", G]
+          ] },
+        { name: "Velocity", group: "Mechanical",
+          units: [
+            ["m/s", 1], ["km/h", 1 / 3.6], ["ft/s", FT], ["ft/min", FT / 60],
+            ["mph — miles per hour", MILE / 3600], ["kn — knot", 1852 / 3600]
+          ] },
+        { name: "Angle", group: "Mechanical",
+          units: [
+            ["rad — radian", 1], ["° — degree", PI / 180], ["mrad — milliradian", 1e-3],
+            ["gon — gradian", PI / 200], ["rev — revolution", 2 * PI]
+          ] },
+        { name: "Rotational speed", group: "Mechanical",
+          units: [
+            ["rad/s", 1], ["rpm — revolutions per minute", 2 * PI / 60],
+            ["Hz — revolutions per second", 2 * PI], ["°/s", PI / 180]
+          ] },
+        { name: "Time", group: "Mechanical",
+          units: [
+            ["s — second", 1], ["min — minute", 60], ["h — hour", 3600],
+            ["d — day", 86400], ["wk — week", 604800], ["yr — year (365 d)", 31536000]
+          ] },
+
+        { name: "Temperature", group: "Thermal & energy", minBase: 0,
+          baseNote: "Below absolute zero is refused rather than converted.",
+          units: [
+            ["°C — Celsius", { to: function (c) { return c + 273.15; },
+                               from: function (k) { return k - 273.15; } }],
+            ["K — kelvin", { to: function (k) { return k; }, from: function (k) { return k; } }],
+            ["°F — Fahrenheit", { to: function (f) { return (f - 32) * 5 / 9 + 273.15; },
+                                  from: function (k) { return (k - 273.15) * 9 / 5 + 32; } }],
+            ["°R — Rankine", { to: function (r) { return r * 5 / 9; },
+                               from: function (k) { return k * 9 / 5; } }]
+          ] },
+        { name: "Energy", group: "Thermal & energy",
+          units: [
+            ["J — joule", 1], ["kJ — kilojoule", 1e3], ["MJ — megajoule", 1e6],
+            ["kWh — kilowatt hour", 3.6e6], ["cal — calorie (thermochemical)", 4.184],
+            ["kcal — kilocalorie", 4184], ["BTU — International Table", BTU],
+            ["MMBTU", 1e6 * BTU], ["therm (UK)", 105505585.257348]
+          ] },
+        { name: "Power", group: "Thermal & energy",
+          units: [
+            ["W — watt", 1], ["kW — kilowatt", 1e3], ["MW — megawatt", 1e6],
+            ["hp — mechanical horsepower", 550 * FT * LBF],
+            ["BTU/h", BTU / 3600], ["MMBTU/h", 1e6 * BTU / 3600]
+          ] },
+        { name: "Thermal conductivity", group: "Thermal & energy",
+          units: [
+            ["W/(m·K)", 1], ["kW/(m·K)", 1e3], ["cal/(s·cm·°C)", 4.184 / 1e-2],
+            ["kcal/(h·m·°C)", 4184 / 3600], ["BTU/(h·ft·°F)", BTU / (3600 * FT * 5 / 9)]
+          ] },
+        { name: "Heat transfer coefficient", group: "Thermal & energy",
+          units: [
+            ["W/(m²·K)", 1], ["kW/(m²·K)", 1e3], ["kcal/(h·m²·°C)", 4184 / 3600],
+            ["BTU/(h·ft²·°F)", BTU / (3600 * FT * FT * 5 / 9)]
+          ] },
+        { name: "Specific heat", group: "Thermal & energy",
+          units: [
+            ["J/(kg·K)", 1], ["kJ/(kg·K)", 1e3], ["cal/(g·°C)", 4184],
+            ["BTU/(lb·°F)", BTU / (LB * 5 / 9)]
+          ] },
+
+        { name: "Oil gravity", group: "Oil & gas", minBase: 0,
+          baseNote: "Specific gravity and °API are relative to water at 60 °F, "
+                  + "taken as 999.016 kg/m³.",
+          units: [
+            ["kg/m³", 1], ["g/cm³", 1000], ["lb/ft³", LB / (FT * FT * FT)],
+            ["SG — specific gravity (60/60 °F)",
+              { to: function (sg) { return sg * WATER_60F; },
+                from: function (rho) { return rho / WATER_60F; } }],
+            ["°API — API gravity",
+              { to: function (api) { return 141.5 / (api + 131.5) * WATER_60F; },
+                from: function (rho) { return 141.5 / (rho / WATER_60F) - 131.5; } }]
+          ] },
+        { name: "Standard gas volume", group: "Oil & gas",
+          units: [
+            ["sm³ — standard m³ (15 °C, 101.325 kPa)", 1],
+            ["Nm³ — normal m³ (0 °C, 101.325 kPa)", NM3_TO_SM3],
+            ["scf — standard ft³ (60 °F, 14.696 psia)", SCF_TO_SM3],
+            ["Mscf — thousand scf", 1e3 * SCF_TO_SM3],
+            ["MMscf — million scf", 1e6 * SCF_TO_SM3]
+          ] },
+        { name: "Standard gas flow", group: "Oil & gas",
+          units: [
+            ["sm³/d", 1], ["sm³/h", 24], ["Nm³/h", 24 * NM3_TO_SM3], ["Nm³/d", NM3_TO_SM3],
+            ["scf/d", SCF_TO_SM3], ["Mscf/d", 1e3 * SCF_TO_SM3],
+            ["MMscf/d", 1e6 * SCF_TO_SM3]
+          ] },
+        { name: "Gas–oil ratio", group: "Oil & gas",
+          units: [
+            ["sm³/m³", 1], ["Nm³/m³", NM3_TO_SM3], ["scf/bbl", SCF_TO_SM3 / BBL]
+          ] }
+    ];
+
+    var BY_NAME = {};
+    QUANTITIES.forEach(function (q) { BY_NAME[q.name] = q; });
+
+    /* ============================================================
+          Conversion
+          ============================================================ */
+
+    function labelOf(unit) { return unit[0]; }
+    function specOf(unit) { return unit[1]; }
+    function symbolOf(label) { return label.split(" — ")[0]; }
+    function nameOf(label) {
+        var i = label.indexOf(" — ");
+        return i < 0 ? "" : label.slice(i + 3);
+    }
+    function toBase(spec, v) { return typeof spec === "number" ? v * spec : spec.to(v); }
+    function fromBase(spec, b) { return typeof spec === "number" ? b / spec : spec.from(b); }
+    function convert(v, fromSpec, toSpec) { return fromBase(toSpec, toBase(fromSpec, v)); }
+
+    /* A value below a quantity's physical floor has no counterpart to convert
+          to, and reporting one anyway is how the previous version of this page
+          managed to produce a negative kelvin. */
+    var FLOOR_MESSAGE = {
+        "Temperature": "Below absolute zero — there is no such temperature.",
+        "Pressure": "Below absolute zero pressure. A gauge reading cannot be more "
+                  + "negative than the atmosphere it is measured against.",
+        "Oil gravity": "Below −131.5 °API the formula implies a negative density.",
+        "Density": "A negative density has no physical counterpart."
+    };
+    function floorError(q, base) {
+        if (q.minBase === undefined || !isFinite(base)) return null;
+        if (base < q.minBase - 1e-12) return FLOOR_MESSAGE[q.name] || "Below the physical minimum.";
+        return null;
+    }
+
+    /* ============================================================
+          Formatting -- round to the chosen significant figures, then render
+          in plain notation with grouped digits while that stays readable.
+          ============================================================ */
+
+    var SUPERSCRIPT = { "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+                        "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
+    function superscript(exponent) {
+        return String(exponent).split("").map(function (ch) {
+            return SUPERSCRIPT[ch] || ch;
+        }).join("");
+    }
+    function trimZeros(text) {
+        return text.indexOf(".") < 0 ? text : text.replace(/0+$/, "").replace(/\.$/, "");
+    }
+    function group(text) {
+        var neg = text.charAt(0) === "-";
+        var body = neg ? text.slice(1) : text;
+        var dot = body.indexOf(".");
+        var whole = dot < 0 ? body : body.slice(0, dot);
+        var rest = dot < 0 ? "" : body.slice(dot);
+        return (neg ? "-" : "") + whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + rest;
+    }
+
+    function format(n, sf) {
+        if (!isFinite(n)) return "—";
+        if (n === 0) return "0";
+        sf = sf || state.sigFigs;
+        var rounded = Number(n.toPrecision(sf));
+        var mag = Math.abs(rounded);
+        if (mag >= 1e-4 && mag < 1e12) {
+            var decimals = Math.max(0, Math.min(100, sf - 1 - Math.floor(Math.log10(mag))));
+            return group(trimZeros(rounded.toFixed(decimals)));
+        }
+        var parts = rounded.toExponential(sf - 1).split("e");
+        return trimZeros(parts[0]) + " × 10" + superscript(Number(parts[1]));
+    }
+
+    function parseValue(raw) {
+        var cleaned = String(raw).trim().replace(/,/g, "").replace(/\s+/g, "");
+        if (cleaned === "") return { empty: true };
+        var n = Number(cleaned);
+        return isFinite(n) ? { value: n } : { bad: true };
+    }
+
+    /* ============================================================
+          URL state -- so a conversion can be linked to rather than described.
+          Units travel as symbols, not indices, so the link survives the list
+          being reordered or added to.
+          ============================================================ */
+
+    function readUrl() {
+        var hash = window.location.hash.replace(/^#/, "");
+        if (!hash) return;
+        var params = {};
+        hash.split("&").forEach(function (pair) {
+            var i = pair.indexOf("=");
+            if (i > 0) params[decodeURIComponent(pair.slice(0, i))] = decodeURIComponent(pair.slice(i + 1));
+        });
+        var q = BY_NAME[params.q];
+        if (q) state.quantity = q.name;
+        var units = BY_NAME[state.quantity].units;
+        function indexOfSymbol(sym, fallback) {
+            for (var i = 0; i < units.length; i++) if (symbolOf(labelOf(units[i])) === sym) return i;
+            return fallback;
+        }
+        if (params.f) state.from = indexOfSymbol(params.f, state.from);
+        if (params.t) state.to = indexOfSymbol(params.t, state.to);
+        if (params.v !== undefined) state.value = params.v;
+        if (params.sf && [4, 6, 8, 10, 12].indexOf(Number(params.sf)) >= 0) state.sigFigs = Number(params.sf);
+        if (params.atm && isFinite(Number(params.atm))) state.patm = Number(params.atm);
+        state.from = Math.min(state.from, units.length - 1);
+        state.to = Math.min(state.to, units.length - 1);
+    }
+
+    function writeUrl() {
+        var units = BY_NAME[state.quantity].units;
+        var parts = ["q=" + encodeURIComponent(state.quantity),
+                     "v=" + encodeURIComponent(state.value),
+                     "f=" + encodeURIComponent(symbolOf(labelOf(units[state.from]))),
+                     "t=" + encodeURIComponent(symbolOf(labelOf(units[state.to]))),
+                     "sf=" + state.sigFigs];
+        if (hasGauge(BY_NAME[state.quantity])) parts.push("atm=" + state.patm);
+        // replaceState so that typing a value does not fill the back button.
+        try {
+            window.history.replaceState(null, "", "#" + parts.join("&"));
+        } catch (e) { /* file:// and some privacy modes refuse; the tool still works */ }
+    }
+
+    function hasGauge(q) {
+        return q.units.some(function (u) { return /gauge/.test(labelOf(u)); });
+    }
+
+    /* ============================================================
+          Render
+          ============================================================ */
 
     var quantityEl = document.getElementById("quantity");
     var valueEl    = document.getElementById("value");
     var fromEl     = document.getElementById("from-unit");
     var toEl       = document.getElementById("to-unit");
     var swapEl     = document.getElementById("swap");
+    var copyEl     = document.getElementById("copy");
     var outValueEl = document.getElementById("result-value");
     var outNoteEl  = document.getElementById("result-restated");
+    var allTable   = document.getElementById("all-units");
+    var allNoteEl  = document.getElementById("all-note");
+    var sigEl      = document.getElementById("sigfigs");
+    var atmEl      = document.getElementById("atm");
+    var atmField   = document.getElementById("atm-field");
 
-    function currentUnits() {
-        return QUANTITIES[quantityEl.value];
-    }
+    var lastResultText = null;     // what Copy puts on the clipboard
+    var lastResultValue = null;    // the unrounded result, for an exact swap
 
-    /* Convert by way of the quantity's base unit. */
-    function convert(value, fromSpec, toSpec) {
-        var base = typeof fromSpec === "number" ? value * fromSpec : fromSpec.to(value);
-        return typeof toSpec === "number" ? base / toSpec : toSpec.from(base);
-    }
+    function currentQuantity() { return BY_NAME[state.quantity]; }
 
-    /* Readable output: plain notation while it stays short, exponent
-       otherwise, with trailing zeros trimmed either way. */
-    function format(n) {
-        if (!isFinite(n)) return "—";
-        if (n === 0) return "0";
-
-        var magnitude = Math.abs(n);
-        var text = (magnitude >= 1e-4 && magnitude < 1e12)
-            ? n.toPrecision(10)
-            : n.toExponential(8);
-
-        if (text.indexOf("e") === -1) {
-            if (text.indexOf(".") !== -1) {
-                text = text.replace(/0+$/, "").replace(/\.$/, "");
-            }
-            return text;
-        }
-
-        var parts = text.split("e");
-        var mantissa = parts[0];
-        if (mantissa.indexOf(".") !== -1) {
-            mantissa = mantissa.replace(/0+$/, "").replace(/\.$/, "");
-        }
-        return mantissa + " × 10" + superscript(Number(parts[1]));
-    }
-
-    /* Render an exponent as real superscript digits: -4 -> "⁻⁴". */
-    var SUPERSCRIPT = {
-        "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
-        "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹"
-    };
-
-    function superscript(exponent) {
-        return String(exponent).split("").map(function (ch) {
-            return SUPERSCRIPT[ch] || ch;
-        }).join("");
-    }
-
-    /* Strip the descriptive half of a label: "kPa — kilopascal" -> "kPa". */
-    function symbolOf(label) {
-        return label.split(" — ")[0];
-    }
-
-    function fillUnitSelect(select, selectedIndex) {
-        var units = currentUnits();
+    function fillUnitSelect(select, selected) {
+        var units = currentQuantity().units;
         select.innerHTML = "";
         units.forEach(function (unit, i) {
             var option = document.createElement("option");
             option.value = String(i);
-            option.textContent = unit[0];
+            option.textContent = labelOf(unit);
             select.appendChild(option);
         });
-        select.value = String(Math.min(selectedIndex, units.length - 1));
-    }
-
-    function onQuantityChange() {
-        fillUnitSelect(fromEl, 0);
-        fillUnitSelect(toEl, 1);
-        update();
+        select.value = String(Math.min(selected, units.length - 1));
     }
 
     function update() {
-        var units = currentUnits();
-        var raw = valueEl.value.trim().replace(/,/g, "");
-        var value = raw === "" ? NaN : Number(raw);
+        var q = currentQuantity();
+        var units = q.units;
+        // Read the field rather than trusting a listener: swap writes to it
+        // directly, and a stale state.value would be published in the URL.
+        state.value = valueEl.value;
+        var parsed = parseValue(valueEl.value);
 
-        if (!isFinite(value)) {
+        atmField.hidden = !hasGauge(q);
+        allNoteEl.textContent = q.baseNote || ("The same quantity in every unit listed for "
+            + q.name.toLowerCase() + ".");
+
+        if (parsed.empty || parsed.bad) {
             outValueEl.className = "result-value is-error";
-            outValueEl.textContent = raw === ""
-                ? "Enter a value to convert."
-                : "That is not a number.";
+            outValueEl.textContent = parsed.empty ? "Enter a value to convert."
+                                                  : "That is not a number.";
             outNoteEl.textContent = "";
+            copyEl.hidden = true;
+            lastResultText = lastResultValue = null;
+            renderAll(null);
             return;
         }
 
-        var from = units[Number(fromEl.value)];
-        var to   = units[Number(toEl.value)];
+        var from = units[state.from], to = units[state.to];
+        var base = toBase(specOf(from), parsed.value);
+        var problem = floorError(q, base);
 
+        if (problem) {
+            outValueEl.className = "result-value is-error";
+            outValueEl.textContent = problem;
+            outNoteEl.textContent = "";
+            copyEl.hidden = true;
+            lastResultText = lastResultValue = null;
+            renderAll(null);
+            return;
+        }
+
+        var result = fromBase(specOf(to), base);
+        var shown = format(result) + " " + symbolOf(labelOf(to));
         outValueEl.className = "result-value";
-        outValueEl.textContent = format(convert(value, from[1], to[1])) + " " + symbolOf(to[0]);
-        outNoteEl.textContent = format(value) + " " + symbolOf(from[0]) + " equals";
+        outValueEl.textContent = shown;
+        outNoteEl.textContent = format(parsed.value) + " " + symbolOf(labelOf(from)) + " equals";
+        lastResultText = shown;
+        lastResultValue = result;
+        copyEl.hidden = false;
+        copyEl.textContent = "Copy";
+        renderAll(base);
+        writeUrl();
     }
 
+    /* The same value in every unit of the quantity, because most conversion is
+          exploratory and the one unit you asked for is rarely the only one you
+          wanted. The from and to rows are marked so the table and the headline
+          result are visibly the same conversion. */
+    function renderAll(base) {
+        var units = currentQuantity().units;
+        allTable.innerHTML = "";
+
+        var thead = document.createElement("thead");
+        var hr = document.createElement("tr");
+        ["Unit", "Value"].forEach(function (text) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            th.textContent = text;
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        allTable.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        units.forEach(function (unit, i) {
+            var tr = document.createElement("tr");
+            if (i === state.from) tr.className = "is-from";
+            else if (i === state.to) tr.className = "is-to";
+
+            var tdUnit = document.createElement("td");
+            tdUnit.appendChild(document.createTextNode(symbolOf(labelOf(unit))));
+            var name = nameOf(labelOf(unit));
+            if (name) {
+                var span = document.createElement("span");
+                span.className = "unit-name";
+                span.textContent = " · " + name;
+                tdUnit.appendChild(span);
+            }
+            tr.appendChild(tdUnit);
+
+            var tdVal = document.createElement("td");
+            tdVal.textContent = base === null ? "—" : format(fromBase(specOf(unit), base));
+            tr.appendChild(tdVal);
+            tbody.appendChild(tr);
+        });
+        allTable.appendChild(tbody);
+    }
+
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        host.innerHTML = "";
+        var h = document.createElement("h4");
+        h.textContent = "Definitions everything else is derived from";
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        row("Inch", "0.0254 m exactly; foot 12 in, yard 3 ft, mile 5,280 ft");
+        row("Pound", "0.453 592 37 kg exactly; ounce lb/16, short ton 2,000 lb");
+        row("Standard gravity", G + " m/s² exactly, giving lbf and kgf");
+        row("Pound-force per in²", format(PSI, 12) + " Pa");
+        row("US gallon", "231 in³; barrel 42 US gallons = " + format(BBL, 9) + " m³");
+        row("BTU", BTU + " J (International Table)");
+        row("Standard atmosphere", ATM + " Pa exactly");
+        row("Gauge reference in use", format(state.patm, 9) + " Pa");
+        row("Water at 60 °F", WATER_60F + " kg/m³, for specific gravity and °API");
+        row("Standard cubic foot", "60 °F and 14.696 psia = " + format(SCF_TO_SM3, 9) + " sm³");
+        row("Normal cubic metre", "0 °C and 101.325 kPa = " + format(NM3_TO_SM3, 9) + " sm³");
+        row("Coverage", QUANTITIES.length + " quantities, "
+            + QUANTITIES.reduce(function (n, q) { return n + q.units.length; }, 0) + " units");
+        host.appendChild(dl);
+    }
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    function onQuantityChange() {
+        state.quantity = quantityEl.value;
+        state.from = 0;
+        state.to = Math.min(1, currentQuantity().units.length - 1);
+        fillUnitSelect(fromEl, state.from);
+        fillUnitSelect(toEl, state.to);
+        update();
+        renderFigures();
+    }
+
+    /* Swap makes the answer the question: the units exchange places and the
+          result moves into the input, so pressing it twice returns you to where
+          you started, give or take the last figure shown. */
     function swap() {
-        var held = fromEl.value;
-        fromEl.value = toEl.value;
-        toEl.value = held;
+        var held = state.from;
+        state.from = state.to;
+        state.to = held;
+        fromEl.value = String(state.from);
+        toEl.value = String(state.to);
+        if (lastResultValue !== null) valueEl.value = String(lastResultValue);
         update();
     }
 
-    Object.keys(QUANTITIES).forEach(function (name) {
-        var option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        quantityEl.appendChild(option);
-    });
+    function copyResult() {
+        if (lastResultText === null) return;
+        var done = function () {
+            copyEl.textContent = "Copied";
+            window.setTimeout(function () { copyEl.textContent = "Copy"; }, 1200);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(lastResultText).then(done, function () {
+                copyEl.textContent = "Press ⌘C";
+            });
+        } else {
+            copyEl.textContent = "Press ⌘C";
+        }
+    }
+
+    function buildQuantityOptions() {
+        var groups = {};
+        QUANTITIES.forEach(function (q) {
+            if (!groups[q.group]) {
+                var og = document.createElement("optgroup");
+                og.label = q.group;
+                groups[q.group] = og;
+                quantityEl.appendChild(og);
+            }
+            var option = document.createElement("option");
+            option.value = q.name;
+            option.textContent = q.name;
+            groups[q.group].appendChild(option);
+        });
+    }
 
     quantityEl.addEventListener("change", onQuantityChange);
-    valueEl.addEventListener("input", update);
-    fromEl.addEventListener("change", update);
-    toEl.addEventListener("change", update);
+    valueEl.addEventListener("input", function () { state.value = valueEl.value; update(); });
+    fromEl.addEventListener("change", function () { state.from = Number(fromEl.value); update(); });
+    toEl.addEventListener("change", function () { state.to = Number(toEl.value); update(); });
     swapEl.addEventListener("click", swap);
+    copyEl.addEventListener("click", copyResult);
+    sigEl.addEventListener("change", function () {
+        state.sigFigs = Number(sigEl.value);
+        update();
+        renderFigures();
+    });
+    atmEl.addEventListener("change", function () {
+        state.patm = Number(atmEl.value);
+        update();
+        renderFigures();
+    });
 
-    onQuantityChange();
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          A converter is a page of constants, which is exactly the kind of
+          thing that looks right when it is wrong. These run on every load
+          and report into the assumptions panel. The pinned figures were
+          derived from the definitions above rather than copied from the
+          code, so they test it rather than restate it.
+          ============================================================ */
+
+    // [quantity, from symbol, to symbol, input, expected]
+    var PINNED = [
+        ["Length", "in", "mm", 1, 25.4],
+        ["Length", "mi", "ft", 1, 5280],
+        ["Length", "nmi", "m", 1, 1852],
+        ["Area", "ft²", "in²", 1, 144],
+        ["Area", "acre", "m²", 1, 4046.8564224],
+        ["Mass", "lb", "kg", 1, 0.45359237],
+        ["Mass", "short ton (US)", "lb", 1, 2000],
+        ["Volume", "bbl", "gal (US)", 1, 42],
+        ["Volume", "ft³", "L", 1, 28.316846592],
+        ["Pressure", "psi", "Pa", 1, 6894.757293168361],
+        ["Pressure", "atm", "kPa", 1, 101.325],
+        ["Pressure", "bar", "psi", 1, 14.503773773020924],
+        ["Pressure", "barg", "bar", 0, 1.01325],
+        ["Pressure", "bar", "barg", 1, -0.01325],
+        ["Pressure", "psig", "bar", 0, 1.01325],
+        ["Pressure gradient", "psi/ft", "Pa/m", 1, 22620.594793859455],
+        ["Pressure gradient", "psi/100 ft", "psi/ft", 100, 1],
+        ["Volumetric flow", "bbl/d", "m³/d", 1000, 158.987294928],
+        ["Volumetric flow", "gpm (US)", "m³/h", 1, 0.22712470704],
+        ["Mass flow", "t/h", "kg/s", 3.6, 1],
+        ["Temperature", "°C", "°F", 100, 212],
+        ["Temperature", "°C", "°F", -40, -40],
+        ["Temperature", "°C", "K", 0, 273.15],
+        ["Temperature", "K", "°R", 273.15, 491.67],
+        ["Energy", "BTU", "J", 1, 1055.05585262],
+        ["Energy", "kWh", "MJ", 1, 3.6],
+        ["Power", "hp", "W", 1, 745.6998715822702],
+        ["Force", "lbf", "N", 1, 4.4482216152605],
+        ["Force", "kgf", "N", 1, 9.80665],
+        ["Torque", "lbf·ft", "N·m", 1, 1.3558179483314004],
+        ["Velocity", "kn", "m/s", 1, 0.5144444444444445],
+        ["Velocity", "mph", "ft/s", 60, 88],
+        ["Angle", "rev", "°", 1, 360],
+        ["Rotational speed", "rpm", "Hz", 60, 1],
+        ["Time", "h", "s", 1, 3600],
+        ["Specific heat", "BTU/(lb·°F)", "J/(kg·K)", 1, 4186.8],
+        ["Thermal conductivity", "BTU/(h·ft·°F)", "W/(m·K)", 1, 1.7307346663713912],
+        ["Heat transfer coefficient", "BTU/(h·ft²·°F)", "W/(m²·K)", 1, 5.678263341113488],
+        ["Oil gravity", "°API", "SG", 10, 1],
+        ["Oil gravity", "SG", "°API", 1, 10],
+        ["Oil gravity", "°API", "kg/m³", 10, 999.016],
+        ["Standard gas volume", "scf", "sm³", 1, 0.028262455049380606],
+        ["Standard gas volume", "Nm³", "sm³", 1, 1.0549148819330039],
+        ["Standard gas flow", "MMscf/d", "sm³/d", 1, 28262.455049380605],
+        ["Gas–oil ratio", "scf/bbl", "sm³/m³", 1, 0.17776549416844736]
+    ];
+
+    // Units that are the same unit under two names, and must stay identical.
+    var ALIASES = [
+        ["Dynamic viscosity", "cP", "mPa·s"],
+        ["Kinematic viscosity", "cSt", "mm²/s"],
+        ["Density", "kg/L", "g/cm³"]
+    ];
+
+    function unitIndex(q, symbol) {
+        for (var i = 0; i < q.units.length; i++) {
+            if (symbolOf(labelOf(q.units[i])) === symbol) return i;
+        }
+        return -1;
+    }
+
+    function runSelfChecks() {
+        var results = [], failures = [];
+        function check(name, ok, detail) {
+            results.push(ok);
+            if (!ok) failures.push(name + (detail ? " — " + detail : ""));
+        }
+        function close(a, b, tol, abs) {
+            if (a === b) return true;
+            if (!isFinite(a) || !isFinite(b)) return false;
+            var scale = Math.max(Math.abs(a), Math.abs(b));
+            // Relative, with an absolute floor: a value that should be zero comes
+            // back as 1e-14, and no relative tolerance can accept that.
+            return Math.abs(a - b) <= (tol === undefined ? 1e-12 : tol) * scale
+                                    + (abs === undefined ? 1e-12 : abs);
+        }
+        var savedPatm = state.patm;
+        state.patm = ATM;                  // pins assume the standard atmosphere
+
+        /* -- shape of the tables ---------------------------------------- */
+        QUANTITIES.forEach(function (q) {
+            var tag = q.name + ": ";
+            check(tag + "has at least two units", q.units.length >= 2);
+            check(tag + "belongs to a group", !!q.group);
+            var seenLabel = {}, seenSymbol = {};
+            q.units.forEach(function (u) {
+                var label = labelOf(u), sym = symbolOf(label);
+                check(tag + "label " + label + " appears once", !seenLabel[label]);
+                check(tag + "symbol " + sym + " appears once", !seenSymbol[sym]);
+                seenLabel[label] = seenSymbol[sym] = true;
+                var spec = specOf(u);
+                check(tag + sym + " is a factor or a to/from pair",
+                      typeof spec === "number"
+                          ? isFinite(spec) && spec > 0
+                          : typeof spec.to === "function" && typeof spec.from === "function");
+            });
+            // The base need not be listed first -- Celsius leads the temperature
+            // list because that is what people reach for -- but it must be there.
+            var hasBase = q.units.some(function (u) { return close(toBase(specOf(u), 1), 1); });
+            check(tag + "its base unit is in the list", hasBase);
+        });
+
+        /* -- every unit round-trips through the base -------------------- */
+        QUANTITIES.forEach(function (q) {
+            q.units.forEach(function (u) {
+                var sym = symbolOf(labelOf(u)), spec = specOf(u);
+                [0, 1, 7.5, 1234.5, 1e-3].forEach(function (v) {
+                    var back = fromBase(spec, toBase(spec, v));
+                    check(q.name + " " + sym + ": round-trips at " + v, close(back, v, 1e-9),
+                          String(back));
+                });
+                // and to itself, which is the identity the UI can be asked for
+                check(q.name + " " + sym + ": converting to itself is the identity",
+                      close(convert(3.25, spec, spec), 3.25, 1e-9));
+                /* Strictly monotonic, so no factor has slipped a sign -- but not
+                      necessarily increasing: °API runs the other way by construction,
+                      a heavier oil being a lower number. */
+                var steps = [1, 2, 3, 4].map(function (x) { return toBase(spec, x); });
+                var rising = steps[1] > steps[0], mono = true;
+                for (var k = 1; k < steps.length; k++) {
+                    if ((steps[k] > steps[k - 1]) !== rising || steps[k] === steps[k - 1]) mono = false;
+                }
+                check(q.name + " " + sym + ": is strictly monotonic", mono, steps.join(", "));
+                if (typeof spec === "number") {
+                    check(q.name + " " + sym + ": a plain factor rises with its input", rising);
+                }
+            });
+        });
+
+        /* -- pinned figures, derived from the definitions --------------- */
+        PINNED.forEach(function (t) {
+            var q = BY_NAME[t[0]];
+            if (!q) { check("pinned " + t[0] + " exists", false); return; }
+            var fi = unitIndex(q, t[1]), ti = unitIndex(q, t[2]);
+            if (fi < 0 || ti < 0) {
+                check("pinned " + t[0] + " " + t[1] + "→" + t[2] + " units exist", false);
+                return;
+            }
+            var got = convert(t[3], specOf(q.units[fi]), specOf(q.units[ti]));
+            check("pinned " + t[0] + " " + t[3] + " " + t[1] + " → " + t[2],
+                  close(got, t[4], 1e-12), got + " vs " + t[4]);
+        });
+
+        /* -- units listed twice on purpose really are identical --------- */
+        ALIASES.forEach(function (t) {
+            var q = BY_NAME[t[0]];
+            var a = specOf(q.units[unitIndex(q, t[1])]), b = specOf(q.units[unitIndex(q, t[2])]);
+            check("alias " + t[1] + " is " + t[2], a === b || close(toBase(a, 1), toBase(b, 1)));
+        });
+
+        /* -- mmHg and torr are close but deliberately not equal --------- */
+        var press = BY_NAME["Pressure"];
+        var mmHg = toBase(specOf(press.units[unitIndex(press, "mmHg")]), 1);
+        var torr = toBase(specOf(press.units[unitIndex(press, "torr")]), 1);
+        check("mmHg and torr differ", mmHg !== torr);
+        check("mmHg and torr agree to a part in a million",
+              Math.abs(mmHg - torr) / torr < 1e-6, String(Math.abs(mmHg - torr) / torr));
+
+        /* -- the physical floors actually fire -------------------------- */
+        [["Temperature", "°C", -300], ["Temperature", "K", -1],
+         ["Pressure", "barg", -2], ["Oil gravity", "°API", -200],
+         ["Density", "kg/m³", -1]].forEach(function (t) {
+            var q = BY_NAME[t[0]], i = unitIndex(q, t[1]);
+            var base = toBase(specOf(q.units[i]), t[2]);
+            check("floor rejects " + t[2] + " " + t[1], floorError(q, base) !== null);
+        });
+        [["Temperature", "°C", -273.15], ["Pressure", "barg", -1],
+         ["Oil gravity", "°API", 10]].forEach(function (t) {
+            var q = BY_NAME[t[0]], i = unitIndex(q, t[1]);
+            var base = toBase(specOf(q.units[i]), t[2]);
+            check("floor allows " + t[2] + " " + t[1], floorError(q, base) === null);
+        });
+
+        /* -- gauge pressure follows the reference it is given ----------- */
+        var bargSpec = specOf(press.units[unitIndex(press, "barg")]);
+        state.patm = 100000;
+        check("gauge follows the atmospheric reference",
+              close(toBase(bargSpec, 0), 100000));
+        state.patm = ATM;
+        check("gauge returns to the standard atmosphere",
+              close(toBase(bargSpec, 0), ATM));
+
+        /* -- formatting ------------------------------------------------- */
+        [[1609344, 10, "1,609,344"], [1609344, 4, "1,609,000"], [25.4, 10, "25.4"],
+         [0, 10, "0"], [-0.005, 10, "-0.005"], [1, 10, "1"], [1234.5, 6, "1,234.5"]
+        ].forEach(function (t) {
+            check("format " + t[0] + " at " + t[1] + " sig figs", format(t[0], t[1]) === t[2],
+                  format(t[0], t[1]) + " vs " + t[2]);
+        });
+        check("very small values go exponential", /× 10⁻/.test(format(1e-9, 10)));
+        check("very large values go exponential", /× 10¹/.test(format(1e15, 10)));
+
+        /* -- the input parser ------------------------------------------- */
+        [["1", 1], ["1e5", 1e5], ["1,234", 1234], ["  7  ", 7], ["-3.5", -3.5]]
+            .forEach(function (t) {
+                var p = parseValue(t[0]);
+                check("parse " + JSON.stringify(t[0]), p.value === t[1]);
+            });
+        ["", "abc", "1.5.5", "Infinity", "1e400"].forEach(function (raw) {
+            var p = parseValue(raw);
+            check("parse rejects " + JSON.stringify(raw), !!(p.empty || p.bad));
+        });
+
+        state.patm = savedPatm;
+
+        var passed = results.filter(Boolean).length;
+        var out = document.getElementById("selfcheck");
+        if (failures.length) {
+            out.className = "selfcheck bad";
+            out.textContent = "✖ " + failures.length + " of " + results.length
+                + " self-checks FAILED: " + failures.slice(0, 6).join("; ")
+                + (failures.length > 6 ? "; …" : "");
+            if (window.console) console.error("Unit converter self-checks failed:", failures);
+        } else {
+            out.className = "selfcheck ok";
+            out.textContent = "✓ " + passed + " self-checks passed across "
+                + QUANTITIES.length + " quantities.";
+        }
+        window.__converterSelfChecks = { passed: passed, total: results.length, failures: failures };
+    }
+
+    /* ============================================================
+          Boot
+          ============================================================ */
+
+    buildQuantityOptions();
+    readUrl();
+    quantityEl.value = state.quantity;
+    fillUnitSelect(fromEl, state.from);
+    fillUnitSelect(toEl, state.to);
+    valueEl.value = state.value;
+    sigEl.value = String(state.sigFigs);
+    for (var i = 0; i < atmEl.options.length; i++) {
+        if (Number(atmEl.options[i].value) === state.patm) atmEl.selectedIndex = i;
+    }
+    update();
+    renderFigures();
+    runSelfChecks();
 })();
 </script>
 </body>
