@@ -121,8 +121,25 @@ the tax tools. It defines one global, `UKTax`; load it with a plain
 - **`ladder()` builds a progressive slice ladder** — the shape of SDLT, LBTT and
   LTT — and `amountAt()` / `rateAt()` then give tax due and marginal rate for
   free. A stamp duty tool needs no income tax machinery at all.
+- **`incomeTaxPosition()` works out a whole income tax position** — where each
+  slice of income sits and which nil-rate bands reach it — and
+  `taxFromPosition()` charges it. `incomeTaxOn(year, region, other, savings,
+  dividends)` is the two of them together when only the number is wanted. Take
+  the position itself when a tool has to *label* the bands, so the label and the
+  figure beside it come from the same object.
+- **`corporationTax()` includes marginal relief**, and divides both limits by
+  one plus the number of associated companies. The relief makes the rate on a
+  pound inside the band higher than the main rate, not lower: 26.5% against 25%.
 - **`checker()` is the self-check harness** and `pct(rate, decimalPlaces)` takes
   its precision explicitly, because the tools disagree about it.
+
+A tool that plots a marginal rate against something the tax is not levied on —
+company profit before the owner is paid, say — must find its kinks by walking
+each threshold *back* through whatever the tool does to the money, not by
+plotting the threshold where it appears in the rate table. A chart built as a
+step function draws a flat line straight through a kink it was not told about,
+which looks entirely plausible. Assert that the rate is flat between consecutive
+kinks; that is what catches it.
 
 Anything specific to one tool stays with that tool. The test for putting
 something in the shared file is whether a second tool would want it.

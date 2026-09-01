@@ -534,46 +534,13 @@
 
     var psaFor = UKTax.personalSavingsAllowance;
 
-    function positionOf(y, other, savings, dividends) {
-        other = Math.max(0, other);
-        savings = Math.max(0, savings);
-        dividends = Math.max(0, dividends);
+    /* The income tax position now lives in /assets/uk-tax.js: this tool and the
+          owner-extraction tool both need income tax on a mixture of salary and
+          dividends with the allowance taper, and two copies of that would drift. */
+    var positionOf = UKTax.incomeTaxPosition;
+    var taxFrom = UKTax.taxFromPosition;
 
-        var total = other + savings + dividends;
-        var pa = paFor(y, total);
-        // The allowance is set against other income first, then savings, then dividends.
-        var paOther = Math.min(pa, other), rem = pa - paOther;
-        var paSav = Math.min(rem, savings); rem -= paSav;
-        var paDiv = Math.min(rem, dividends);
-
-        var oT = other - paOther, sT = savings - paSav, dT = dividends - paDiv;
-        var totalT = oT + sT + dT;
-
-        // The starting rate band is the first £5,000 of taxable income, so
-        // non-savings income eats into it before any interest gets there.
-        var srsUsed = Math.max(0, Math.min(sT, y.savings.startingRateBand - oT));
-        var psa = psaFor(y, totalT);
-        var psaUsed = Math.max(0, Math.min(psa, sT - srsUsed));
-        var daUsed = Math.min(y.dividends.allowance, dT);
-
-        return { pa: pa, paOther: paOther, paSav: paSav, paDiv: paDiv,
-                 oT: oT, sT: sT, dT: dT, totalT: totalT,
-                 srsUsed: srsUsed, psa: psa, psaUsed: psaUsed, daUsed: daUsed };
-    }
-
-    /* Income tax on the whole position. The nil-rate bands are not deductions:
-          they sit at the bottom of their slice and use up band space, which is why
-          the taxed remainder starts above them rather than where the slice began. */
-    function taxFrom(y, region, P) {
-        return sliceTax(0, P.oT, y.nonSavings[region])
-             + sliceTax(P.oT + P.srsUsed + P.psaUsed, P.sT - P.srsUsed - P.psaUsed,
-                        ukBands(y, y.savings.rates))
-             + sliceTax(P.oT + P.sT + P.daUsed, P.dT - P.daUsed, ukBands(y, y.dividends.rates));
-    }
-
-    function incomeTax(y, region, other, savings, dividends) {
-        return taxFrom(y, region, positionOf(y, other, savings, dividends));
-    }
+    var incomeTax = UKTax.incomeTaxOn;
 
     /* Capital gains are settled after income tax: the annual exempt amount comes
           off first, then what is left of the basic rate band is charged at the lower

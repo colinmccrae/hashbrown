@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Corporation Tax &amp; Owner Extraction &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="Corporation tax with marginal relief, and what it costs to get the profit out of a company — salary, dividends, retained profit or a pension contribution — with the marginal and effective rates for both tax years.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* salary to the allowance */
+                --series-2:       #eb6834;  /* all salary */
+                --series-3:       #1baf7a;  /* retain in the company */
+                --series-4:       #eda100;  /* all dividends */
+                --series-5:       #e87ba4;  /* salary to the NI threshold */
+                --series-6:       #4a3aa7;  /* pension contribution */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                    --series-4:     #c98500;
+                    --series-5:     #d55181;
+                    --series-6:     #9085e9;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            /* min-width: 0 all the way down. A flex item defaults to min-width:auto
+                  and refuses to shrink below its content, so a long option like
+                  "Salary to the allowance, then dividends" pushed the whole page
+                  sideways at 320px. The select needs it, its wrapper needs it, and so
+                  does this row, which is itself a flex item of .controls. */
+            .ctl-pair {
+                display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end;
+                min-width: 0; max-width: 100%;
+            }
+            .viz-root .controls > div,
+            .ctl-pair > div { min-width: 0; max-width: 100%; }
+            .viz-root input.amount {
+                width: 9rem; font: inherit; font-size: 13px; color: var(--ink);
+                background: var(--surface); border: 1px solid var(--rule);
+                border-radius: 8px; padding: 6px 10px;
+            }
+            .viz-root input.amount:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .stat-group.is-best { border-color: var(--axis); }
+            .stat-flag {
+                display: inline-block; font-size: 10px; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--accent); margin-left: 6px;
+            }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 230px; max-width: 300px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            tbody tr.rule-above td { border-top: 1px solid var(--axis); }
+            tbody tr.total td { font-weight: 600; }
+            tbody tr.total td:first-child { color: var(--text-primary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                /* A select sizes itself to its longest option and will not shrink
+                      below it, so "Salary to the allowance, then dividends" pushes the
+                      whole page sideways on a narrow screen without this. */
+                max-width: 100%;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style>
+</head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Corporation tax &amp; owner extraction &mdash; <span id="year-heading">2026/27</span></h1>
+        <p class="lede">A company&rsquo;s profit is taxed twice: once in the company, and again on
+            the way out. Corporation tax is the easy half &mdash; 19%, then a 26.5% marginal band,
+            then 25%. The hard half is the route out. Salary, dividends, retained profit and a
+            pension contribution are taxed on four different bases, and which one wins changes
+            as the profit grows.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                <div>
+                    <span class="ctl-label" id="lbl-strategy">Route out</span>
+                    <div class="chips" role="group" aria-labelledby="lbl-strategy" id="strategy-chips"></div>
+                </div>
+                <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="profit">Profit</label>
+                        <input id="profit" class="amount" type="text" inputmode="numeric"
+                               value="100,000" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="year-sel">Tax year</label>
+                        <select id="year-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="region-sel">Owner lives in</label>
+                        <select id="region-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="assoc-sel">Associated companies</label>
+                        <select id="assoc-sel">
+                            <option value="0" selected>None</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="ea-sel">Employment allowance</label>
+                        <select id="ea-sel">
+                            <option value="no" selected>Not available &mdash; sole director</option>
+                            <option value="yes">Available &mdash; second employee</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="exit-sel">Money left behind</label>
+                        <select id="exit-sel">
+                            <option value="no" selected>Not taxed yet</option>
+                            <option value="yes">Charged on the way out</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">View</label>
+                        <select id="view-sel">
+                            <option value="marginal" selected>Marginal rate</option>
+                            <option value="effective">Effective rate</option>
+                            <option value="tax">Total tax</option>
+                            <option value="kept">Left after tax</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="range-sel">Profit range</label>
+                        <select id="range-sel">
+                            <option value="100000">&pound;0 &ndash; &pound;100k</option>
+                            <option value="250000" selected>&pound;0 &ndash; &pound;250k</option>
+                            <option value="500000">&pound;0 &ndash; &pound;500k</option>
+                            <option value="1000000">&pound;0 &ndash; &pound;1m</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats" id="stats"></div>
+
+            <div class="card">
+                <div class="plot-wrap">
+                    <svg class="chart" id="chart" viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet"
+                              role="img" tabindex="0" aria-label="Tax by company profit and route out."></svg>
+                    <div class="tip" id="tip" role="status" aria-live="polite"></div>
+                    <div class="empty" id="empty" hidden>Select at least one route out to plot.</div>
+                </div>
+                <div class="legend" id="legend"></div>
+            </div>
+            <p class="caption" id="caption"></p>
+
+            <section class="block">
+                <h2>Where the profit goes</h2>
+                <div class="tbl-scroll">
+                    <table id="table"></table>
+                </div>
+            </section>
+
+            <details class="notes">
+                <summary>Assumptions &amp; sources</summary>
+                <div class="figures" id="figures"></div>
+                <ul>
+                    <li><strong>Corporation tax has three rates, not two.</strong> 19% on profits up
+                        to £50,000, 25% above £250,000, and in between the 25% is reduced by
+                        marginal relief. Because each extra pound of profit also withdraws some of
+                        that relief, the rate <em>on the next pound</em> between the two limits is
+                        <strong>26.5%</strong> &mdash; higher than the main rate it is supposed to be
+                        softening. Both limits are divided by one plus the number of associated
+                        companies, so a second company you control halves them.</li>
+                    <li><strong>Corporation tax runs on financial years, not tax years.</strong> A
+                        financial year starts on 1 April; a tax year starts on 6 April. The rates
+                        here have been unchanged since 1 April 2023, so the five-day mismatch makes
+                        no difference to either year on this page &mdash; but it would if a rate ever
+                        changed mid-year, and an accounting period straddling a change has to be
+                        apportioned.</li>
+                    <li><strong>Salary is deducted before corporation tax; a dividend is not.</strong>
+                        That is the whole reason the routes differ. Salary and the employer NI on it
+                        both reduce the taxable profit, so they cost 19p or 26.5p or 25p less per
+                        pound than they look. A dividend is paid out of profit that has already
+                        borne corporation tax, and is then taxed again in the owner&rsquo;s hands.</li>
+                    <li><strong>The employment allowance usually is not available.</strong> A company
+                        whose only employee liable to secondary Class 1 NIC is a single director
+                        cannot claim it. That is the common owner-managed case, so it is the default
+                        here. Set it to available only if there is genuinely a second employee, and
+                        note how far it moves the all-salary line when you do.</li>
+                    <li><strong>The worst band is worse than any headline rate.</strong> On the
+                        salary-to-allowance route the rate on the next pound of company profit peaks
+                        at <strong id="peak-rate">&mdash;</strong>, and it stays there
+                        <span id="peak-range">&mdash;</span>. That stretch is the personal allowance
+                        taper. Each extra pound of dividend withdraws 50p of allowance, which does
+                        two things at once: 50p of the salary stops being covered and is taxed, and
+                        50p of dividend is pushed out of the basic band into the higher one. Stack
+                        corporation tax on top and you get a rate no published table contains. It is
+                        also why paying <em>less</em> salary can win in that stretch &mdash; try the
+                        salary-to-NI-threshold route there.</li>
+                    <li><strong>Retaining profit and paying a pension are deferrals, not savings.</strong>
+                        With &ldquo;money left behind&rdquo; set to not taxed yet, those two routes look
+                        far cheaper than they are, because the tax on getting the money out later is
+                        simply not counted. Switch it to charged on the way out and the page adds an
+                        assumed exit charge: retained profit at the business asset disposal relief
+                        rate on a solvent liquidation, and the pension at 20% on the three-quarters
+                        that is not the tax-free lump sum. Both are assumptions about a future that
+                        has not happened, and neither is a rate in statute.</li>
+                    <li><strong>What this does not model.</strong> One owner-director with no other
+                        income, no student loan, and a company whose profit is all trading profit
+                        taxed in one financial year. Not here: the £60,000 pension annual allowance
+                        taper for high earners and unused carry-forward; whether the company has
+                        distributable reserves to pay the dividend at all; whether the salary is
+                        commercially justifiable; close company loans to participators and the
+                        section 455 charge; the salary sacrifice route; benefits in kind; capital
+                        allowances; R&amp;D relief; patent box; group relief; losses brought forward;
+                        VAT; and anything at all about a second shareholder.</li>
+                    <li><strong>Rates and bands</strong> come from
+                        <code>/assets/uk-tax.js</code>, the shared module behind the other tax tools
+                        on this site, so a Budget is one edit in one file. Income tax, dividend tax
+                        and National Insurance are the same figures the
+                        <a href="/tools/uk-tax-rates/">take-home pay</a> and
+                        <a href="/tools/uk-investment-tax/">savings, dividends and capital gains</a>
+                        tools use.</li>
+                </ul>
+                <p class="selfcheck" id="selfcheck"></p>
+            </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">An illustration, not tax advice. Owner extraction is exactly the kind of
+        question where the right answer depends on facts this page does not know about &mdash; other
+        income, pension history, what the company needs to keep, and what you intend to do with it.
+        Take advice before acting on any of it.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script src="/assets/uk-tax.js"></script>
+<script>
+(function () {
+    "use strict";
+
+    var YEARS = UKTax.YEARS, YEAR_ORDER = UKTax.YEAR_ORDER, REGIONS = UKTax.REGIONS;
+
+    /* ============================================================
+          THE ROUTES OUT
+          ------------------------------------------------------------
+          Six ways the same pound of profit can reach the owner, or not.
+          `defer` marks the two that do not put cash in anyone's hands
+          this year, which the tiles and the exit charge both key off.
+          ============================================================ */
+
+    var STRATEGIES = [
+        { id: "toPA",        label: "Salary to the allowance, then dividends",
+          short: "Salary to allowance",   cssVar: "--series-1", dash: null },
+        { id: "toThreshold", label: "Salary to the NI threshold, then dividends",
+          short: "Salary to NI threshold", cssVar: "--series-5", dash: "5 3" },
+        { id: "allDividend", label: "All dividends, no salary",
+          short: "All dividends",         cssVar: "--series-4", dash: null },
+        { id: "allSalary",   label: "All salary, no dividends",
+          short: "All salary",            cssVar: "--series-2", dash: null },
+        { id: "retain",      label: "Retain in the company",
+          short: "Retain",                cssVar: "--series-3", dash: "7 4", defer: "retained" },
+        { id: "pension",     label: "Pension contribution, then salary and dividends",
+          short: "Pension",               cssVar: "--series-6", dash: "2 3", defer: "pension" }
+    ];
+    var BY_ID = {};
+    STRATEGIES.forEach(function (s) { BY_ID[s.id] = s; });
+
+    /* The two exit charges are ASSUMPTIONS about a future year, not rates in
+          statute, so they live here rather than in the shared rate module. Retained
+          profit is assumed to leave through a solvent liquidation at the business
+          asset disposal relief rate of the year selected; a pension is assumed to be
+          drawn with a quarter tax free and the rest at the basic rate. */
+    var PENSION_EXIT_RATE = 20;
+
+    var state = {
+        year: YEAR_ORDER[0],
+        region: "ruk",
+        on: { toPA: true, toThreshold: false, allDividend: true, allSalary: true,
+              retain: true, pension: false },
+        profit: 100000,
+        associates: 0,
+        ea: false,
+        exit: false,
+        view: "marginal",
+        xMax: 250000
+    };
+
+    /* ============================================================
+          THE ENGINE
+          ------------------------------------------------------------
+          One function turns a profit and a route into every number on the
+          page. Nothing is stored that can be derived, so a tile, a table
+          cell and a point on the line cannot disagree with each other.
+          ============================================================ */
+
+    function erNIOn(y, salary, ea) {
+        var e = y.employerNI;
+        var raw = Math.max(0, salary - e.secondaryThreshold) * e.rate / 100;
+        return ea ? Math.max(0, raw - e.employmentAllowance) : raw;
+    }
+    function eeNIOn(y, salary) {
+        return UKTax.amountAt(UKTax.employeeNIBands(y), Math.max(0, salary));
+    }
+
+    /* The salary whose total cost to the company -- pay plus employer NI -- is
+          exactly `cost`. Solved rather than searched: employer NI is linear in
+          salary above the point where it starts to bite, so inverting it is one
+          line and is exact, which a bisection is not. */
+    function salaryForCost(y, cost, ea) {
+        var e = y.employerNI, r = e.rate / 100, st = e.secondaryThreshold;
+        var allow = ea ? e.employmentAllowance : 0;
+        var free = st + allow / r;          // salary at which employer NI first bites
+        if (cost <= free) return Math.max(0, cost);
+        return (cost + st * r + allow) / (1 + r);
+    }
+
+    function targetSalary(y, id) {
+        if (id === "toPA" || id === "pension") return y.personalAllowance;
+        if (id === "toThreshold") return y.employerNI.secondaryThreshold;
+        if (id === "allSalary") return Infinity;
+        return 0;                            // retain, allDividend
+    }
+
+    function outcome(id, profit) {
+        var y = YEARS[state.year];
+        profit = Math.max(0, profit);
+
+        var contribution = id === "pension"
+            ? Math.min(profit, y.pension.annualAllowance) : 0;
+        var pot = profit - contribution;
+
+        // Salary is capped both by the route's target and by what the company
+        // can actually afford once its own NI on that salary is counted.
+        var salary = Math.min(targetSalary(y, id), salaryForCost(y, pot, state.ea));
+        var erNI = erNIOn(y, salary, state.ea);
+        var ctBase = Math.max(0, pot - salary - erNI);
+        var ct = UKTax.corporationTax(y, ctBase, state.associates);
+        var distributable = ctBase - ct;
+
+        var dividend = id === "retain" ? 0 : distributable;
+        var retained = id === "retain" ? distributable : 0;
+
+        var incomeTax = UKTax.incomeTaxOn(y, state.region, salary, 0, dividend);
+        var eeNI = eeNIOn(y, salary);
+
+        var taxNow = ct + erNI + incomeTax + eeNI;
+        var inHand = salary + dividend - incomeTax - eeNI;
+
+        var exit = state.exit
+            ? retained * y.cgt.badr / 100
+              + contribution * (1 - y.pension.taxFreeShare / 100) * PENSION_EXIT_RATE / 100
+            : 0;
+
+        return {
+            id: id, profit: profit,
+            salary: salary, erNI: erNI, ct: ct, dividend: dividend,
+            retained: retained, contribution: contribution,
+            incomeTax: incomeTax, eeNI: eeNI,
+            taxNow: taxNow, exit: exit, tax: taxNow + exit,
+            deferred: retained + contribution, inHand: inHand,
+            kept: profit - taxNow - exit
+        };
+    }
+
+    function effectiveAt(id, profit) {
+        if (!(profit > 0)) return 0;
+        return outcome(id, profit).tax / profit * 100;
+    }
+
+    /* The rate on the next pound. Every route is piecewise linear in profit, so
+          a difference quotient is exact away from a kink -- but a window centred on
+          one straddles two rates and reports neither. The window is therefore offset
+          to the right of the point, which reads the band the next pound is actually
+          in. It is 1p wide rather than a hundredth of that because at £1m of profit
+          the tax figures are large enough for a narrower window to be measuring
+          floating-point noise. */
+    function marginalAt(id, profit) {
+        var a = outcome(id, profit + 0.002).tax;
+        var b = outcome(id, profit + 0.012).tax;
+        return (b - a) / 0.01 * 100;
+    }
+
+    function valueAt(id, profit) {
+        switch (state.view) {
+            case "marginal":  return marginalAt(id, profit);
+            case "effective": return effectiveAt(id, profit);
+            case "tax":       return outcome(id, profit).tax;
+            default:          return outcome(id, profit).kept;
+        }
+    }
+
+    /* ============================================================
+          Geometry and formatting
+          ============================================================ */
+
+    var VB_W = 920, VB_H = 430;
+    var M = { t: 18, r: 26, b: 46, l: 72 };
+    var PLOT_R = VB_W - M.r, Y0 = VB_H - M.b - 10, PLOT_W = PLOT_R - M.l;
+    var yMax = 20;
+
+    function xS(v) { return M.l + (v / state.xMax) * PLOT_W; }
+    function xInv(px) { return ((px - M.l) / PLOT_W) * state.xMax; }
+    function yS(v) { return Y0 - (v / yMax) * (Y0 - M.t); }
+
+    var gbp = UKTax.gbp, gbpShort = UKTax.gbpShort;
+    function pct(r) { return UKTax.pct(r, 2); }
+    function money(v) { return gbp(v); }
+    function isMoneyView() { return state.view === "tax" || state.view === "kept"; }
+    function fmtValue(v) { return isMoneyView() ? money(v) : pct(v); }
+
+    var MONEY_STEPS = [1000, 2000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+    function niceStep(max, candidates) {
+        for (var i = 0; i < candidates.length; i++) if (max / candidates[i] <= 8) return candidates[i];
+        return candidates[candidates.length - 1];
+    }
+    function computeYMax(series) {
+        var mx = 0;
+        series.forEach(function (s) {
+            curvePoints(s).forEach(function (p) { if (p[1] > mx) mx = p[1]; });
+        });
+        if (isMoneyView()) {
+            if (!(mx > 0)) return 10000;
+            var st = niceStep(mx, MONEY_STEPS);
+            return Math.ceil(mx / st) * st;
+        }
+        return Math.max(5, Math.ceil((mx || 5) / 5) * 5);
+    }
+    function yTicks() {
+        var out = [], st = isMoneyView()
+            ? niceStep(yMax, MONEY_STEPS)
+            : (yMax <= 10 ? 2 : 10);
+        for (var v = 0; v <= yMax + 1e-9; v += st) out.push(v);
+        return out;
+    }
+    function xTickStep(max) {
+        var c = [10000, 20000, 25000, 50000, 100000, 200000, 250000, 500000];
+        for (var i = 0; i < c.length; i++) if (max / c[i] <= 9) return c[i];
+        return c[c.length - 1];
+    }
+
+    var AXIS_TITLE = { marginal:  "Tax on the next pound of profit",
+                       effective: "Tax as a share of the profit",
+                       tax:       "Total tax",
+                       kept:      "Profit left after tax" };
+
+    /* ============================================================
+          Series and curves
+          ============================================================ */
+
+    function activeSeries() {
+        return STRATEGIES.filter(function (s) { return state.on[s.id]; });
+    }
+
+    /* Every kink in every route, so the lines bend in exactly the right places
+          instead of wherever the sampling happened to land. Two sources: the
+          corporation tax limits, which bite on the profit LEFT after pay, and the
+          owner's own income thresholds, which bite on what reaches them. Both are
+          found by walking the profit back through the route rather than guessed,
+          and a stray value costs nothing but an extra sample. */
+    function kinksFor(id) {
+        var y = YEARS[state.year], out = [];
+        var n = 1 + state.associates;
+        var e = y.employerNI, ni = y.employeeNI;
+
+        /* Every threshold below is a threshold on something the ROUTE produces --
+              the profit left after pay, the salary, the owner's taxable income --
+              and not on the profit itself. A route that diverts £60,000 into a
+              pension before paying anything moves all of them £60,000 to the right,
+              and the allowance taper moves the income tax ones again. So each is
+              walked back through the route rather than assumed: every quantity here
+              changes in one direction only and is piecewise linear in profit, so a
+              bisection lands on the profit that produces it exactly. */
+        function seek(of, target, falling) {
+            var lo = 0, hi = state.xMax * 2;
+            if (falling ? (of(hi) > target || of(lo) < target)
+                        : (of(hi) < target || of(lo) > target)) return null;
+            for (var i = 0; i < 60; i++) {
+                var mid = (lo + hi) / 2;
+                if (falling ? of(mid) > target : of(mid) < target) lo = mid; else hi = mid;
+            }
+            return (lo + hi) / 2;
+        }
+        function against(of, targets, falling) {
+            targets.forEach(function (t) {
+                var p = seek(of, t, falling);
+                if (p !== null) out.push(p);
+            });
+        }
+        function position(v) {
+            var o = outcome(id, v);
+            return UKTax.incomeTaxPosition(y, o.salary, 0, o.dividend);
+        }
+
+        // Where corporation tax changes gear: the two limits, divided by one plus
+        // the number of associated companies.
+        against(function (v) { var o = outcome(id, v); return o.ct + o.dividend + o.retained; },
+                [y.corporationTax.lowerLimit / n, y.corporationTax.upperLimit / n]);
+
+        // National Insurance is charged on the gross pay, so its thresholds are
+        // thresholds on the salary itself.
+        var onSalary = [e.secondaryThreshold, ni.primaryThreshold, ni.upperEarningsLimit,
+                        y.personalAllowance];
+        if (state.ea) onSalary.push(e.secondaryThreshold + e.employmentAllowance / (e.rate / 100));
+        against(function (v) { return outcome(id, v).salary; }, onSalary);
+
+        // Income tax is charged on the taxable pay, which is not the same thing
+        // once the allowance starts tapering away. Scotland has five bands to
+        // cross here where the rest of the UK has three.
+        against(function (v) { return position(v).oT; },
+                y.nonSavings[state.region].filter(function (b) { return isFinite(b.upTo); })
+                                          .map(function (b) { return b.upTo; }));
+
+        // Where the owner's total income changes gear: the dividend bands, which
+        // sit on top of everything else, and the allowance taper.
+        against(function (v) { var o = outcome(id, v); return o.salary + o.dividend; },
+                [y.personalAllowance + y.dividends.allowance,
+                 UKTax.grossFor(y, y.basicRateLimit),
+                 y.taperStart, UKTax.taperEnd(y)]);
+
+        // And the point where the shrinking allowance stops covering the salary.
+        // Above it a slice of the salary is taxed and the allowance no longer
+        // shelters any of the dividend, which changes the rate on both at once.
+        against(function (v) { var P = position(v); return P.pa - P.paOther; }, [0], true);
+
+        if (id === "pension") out.push(y.pension.annualAllowance);
+
+        return out.filter(function (v) { return v > 0 && v < state.xMax; })
+                  .sort(function (a, b) { return a - b; });
+    }
+
+    function curvePoints(s) {
+        var kinks = kinksFor(s.id);
+        if (state.view === "marginal") {
+            // A step function: a horizontal run to each kink, then a vertical jump.
+            var r = marginalAt(s.id, 0), out = [[0, r]];
+            kinks.forEach(function (c) {
+                var nr = marginalAt(s.id, c + 0.02);
+                if (Math.abs(nr - r) > 1e-6) { out.push([c, r]); out.push([c, nr]); r = nr; }
+            });
+            out.push([state.xMax, r]);
+            return out;
+        }
+        var pts = [], seen = {};
+        function add(v) {
+            v = Math.max(0, Math.min(state.xMax, Math.round(v * 100) / 100));
+            if (!seen[v]) { seen[v] = 1; pts.push(v); }
+        }
+        add(0); add(state.xMax);
+        kinks.forEach(function (c) { add(c); });
+        for (var i = 0; i <= 200; i++) add(state.xMax * i / 200);
+        pts.sort(function (a, b) { return a - b; });
+        return pts.map(function (x) { return [x, valueAt(s.id, x)]; });
+    }
+
+    /* ============================================================
+          SVG helpers and render
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function pathD(pts) {
+        return pts.map(function (p, i) {
+            return (i ? "L" : "M") + xS(p[0]).toFixed(2) + " " + yS(p[1]).toFixed(2);
+        }).join(" ");
+    }
+
+    var svg = document.getElementById("chart");
+    var tip = document.getElementById("tip");
+    var emptyMsg = document.getElementById("empty");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var statsEl = document.getElementById("stats");
+    var tableEl = document.getElementById("table");
+    var current = [], hoverX = null;
+
+    function render() {
+        current = activeSeries();
+        yMax = computeYMax(current);
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        emptyMsg.hidden = current.length > 0;
+
+        var gGrid = el("g"), gAxis = el("g"), gData = el("g"), gHover = el("g", { id: "hover" });
+
+        // The profit being asked about, marked on the axis.
+        if (state.profit > 0 && state.profit < state.xMax) {
+            var px = xS(state.profit);
+            gGrid.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2),
+                y2: Y0, class: "crosshair" }));
+        }
+
+        yTicks().forEach(function (v) {
+            var yy = yS(v);
+            if (v > 0) gGrid.appendChild(el("line", { x1: M.l, y1: yy.toFixed(2), x2: PLOT_R,
+                y2: yy.toFixed(2), class: "grid-line" }));
+            gAxis.appendChild(el("text", { x: M.l - 10, y: (yy + 4).toFixed(2), class: "tick-text",
+                "text-anchor": "end" }, isMoneyView() ? gbpShort(v) : v + "%"));
+        });
+
+        gAxis.appendChild(el("line", { x1: M.l, y1: Y0, x2: PLOT_R, y2: Y0, class: "axis-line" }));
+        var step = xTickStep(state.xMax);
+        for (var v = 0; v <= state.xMax + 1; v += step) {
+            var xx = xS(v);
+            gAxis.appendChild(el("line", { x1: xx.toFixed(2), y1: Y0, x2: xx.toFixed(2),
+                y2: Y0 + 5, class: "axis-line" }));
+            gAxis.appendChild(el("text", { x: xx.toFixed(2), y: Y0 + 20, class: "tick-text",
+                "text-anchor": "middle" }, gbpShort(v)));
+        }
+        gAxis.appendChild(el("text", { x: ((M.l + PLOT_R) / 2).toFixed(2), y: VB_H - 6,
+            class: "axis-title", "text-anchor": "middle" }, "Company profit before the owner is paid"));
+        gAxis.appendChild(el("text", { x: 14, y: ((M.t + Y0) / 2).toFixed(2), class: "axis-title",
+            "text-anchor": "middle",
+            transform: "rotate(-90 14 " + ((M.t + Y0) / 2).toFixed(2) + ")" }, AXIS_TITLE[state.view]));
+
+        current.forEach(function (s) {
+            var p = el("path", { d: pathD(curvePoints(s)), class: "series-line" });
+            p.style.stroke = "var(" + s.cssVar + ")";
+            if (s.dash) p.setAttribute("stroke-dasharray", s.dash);
+            gData.appendChild(p);
+        });
+
+        svg.appendChild(gGrid);
+        svg.appendChild(gAxis);
+        svg.appendChild(gData);
+        svg.appendChild(gHover);
+        svg.setAttribute("aria-label", AXIS_TITLE[state.view] + " by company profit, "
+            + YEARS[state.year].label + ".");
+
+        document.getElementById("year-heading").textContent = YEARS[state.year].label;
+        renderStats();
+        renderLegend();
+        renderCaption();
+        renderFigures();
+        renderPeakNote();
+        renderTable();
+        if (hoverX !== null) drawHover(hoverX); else clearHover();
+    }
+
+    function keySvg(cssVar, dash) {
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", 22); s.setAttribute("height", 8);
+        s.setAttribute("viewBox", "0 0 22 8");
+        var l = el("line", { x1: 0, y1: 4, x2: 22, y2: 4, "stroke-width": 2, "stroke-linecap": "round" });
+        l.style.stroke = "var(" + cssVar + ")";
+        if (dash) l.setAttribute("stroke-dasharray", dash);
+        s.appendChild(l);
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        if (!current.length) { legendEl.style.display = "none"; return; }
+        legendEl.style.display = "";
+        current.forEach(function (s) {
+            var item = div("lg-item");
+            item.appendChild(keySvg(s.cssVar, s.dash));
+            item.appendChild(document.createTextNode(s.label));
+            legendEl.appendChild(item);
+        });
+    }
+
+    /* One tile per route at the profit asked about, with the one that leaves the
+          owner most flagged. Comparing them is the whole point of the page. */
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        if (!current.length || !(state.profit > 0)) return;
+        var best = null;
+        current.forEach(function (s) {
+            var k = outcome(s.id, state.profit).kept;
+            if (best === null || k > best) best = k;
+        });
+        current.forEach(function (s) {
+            var o = outcome(s.id, state.profit);
+            var isBest = Math.abs(o.kept - best) < 0.005;
+            var g = document.createElement("div");
+            g.className = "stat-group" + (isBest && current.length > 1 ? " is-best" : "");
+            var h = document.createElement("h3");
+            h.appendChild(document.createTextNode(s.label));
+            if (isBest && current.length > 1) {
+                var flag = document.createElement("span");
+                flag.className = "stat-flag";
+                flag.textContent = "keeps most";
+                h.appendChild(flag);
+            }
+            g.appendChild(h);
+            var row = div("stat-row");
+            var pairs = [["Total tax", money(o.tax)],
+                         ["Effective rate", pct(effectiveAt(s.id, state.profit))],
+                         ["Rate on the next pound", pct(marginalAt(s.id, state.profit))],
+                         ["In the owner's hands", money(o.inHand)]];
+            if (o.deferred > 0.005) {
+                pairs.push([s.defer === "pension" ? "In the pension" : "Left in the company",
+                            money(o.deferred)]);
+            }
+            if (current.length > 1) {
+                pairs.push(["Against the best", isBest ? "—" : "−" + money(best - o.kept)]);
+            }
+            pairs.forEach(function (pair) {
+                var cell = document.createElement("div");
+                var lab = document.createElement("span");
+                lab.className = "stat-label";
+                lab.textContent = pair[0];
+                cell.appendChild(lab);
+                cell.appendChild(div("stat-value", pair[1]));
+                row.appendChild(cell);
+            });
+            g.appendChild(row);
+
+            if (o.deferred > 0.005 && !state.exit) {
+                g.appendChild(div("stat-note", "The " + money(o.deferred) + " left behind has "
+                    + "not been taxed in the owner's hands. Set money left behind to charged on "
+                    + "the way out to see what that would cost."));
+            } else if (o.deferred > 0.005 && state.exit) {
+                g.appendChild(div("stat-note", "Includes an assumed " + money(o.exit)
+                    + " charged when the " + money(o.deferred) + " is taken out."));
+            }
+            statsEl.appendChild(g);
+        });
+    }
+
+    function renderCaption() {
+        if (!current.length) { captionEl.textContent = ""; return; }
+        var y = YEARS[state.year], parts = [];
+
+        parts.push("The x-axis is the profit before the owner is paid anything, so salary and the "
+            + "employer NI on it come out of the same pot as the dividend.");
+
+        if (state.associates > 0) {
+            parts.push("With " + state.associates + " associated compan"
+                + (state.associates === 1 ? "y" : "ies") + " the corporation tax limits are divided "
+                + "by " + (1 + state.associates) + ", to " + gbp(y.corporationTax.lowerLimit / (1 + state.associates))
+                + " and " + gbp(y.corporationTax.upperLimit / (1 + state.associates)) + ".");
+        }
+        if (state.ea) {
+            parts.push("The employment allowance is set to available, which is only right if the "
+                + "company has an employee other than a single director.");
+        }
+        if (state.on.retain || state.on.pension) {
+            parts.push(state.exit
+                ? "Retained profit and the pension pot carry an assumed exit charge — "
+                    + UKTax.pct(y.cgt.badr, 0) + " and " + UKTax.pct(PENSION_EXIT_RATE * 0.75, 2)
+                    + " respectively — so the comparison is like for like."
+                : "Retaining profit and paying a pension defer tax rather than avoid it, and the "
+                    + "tax on getting that money out is not counted here.");
+        }
+        if (state.view === "marginal") {
+            parts.push("This is the rate on the next pound of company profit, not on the whole of it.");
+        } else if (state.view === "effective") {
+            parts.push("Effective rate is the total tax divided by the profit, so it always sits "
+                + "below the marginal rate.");
+        }
+        captionEl.textContent = parts.join(" ");
+    }
+
+    function renderFigures() {
+        var y = YEARS[state.year];
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+        var h = document.createElement("h4");
+        h.textContent = "Figures for " + YEARS[state.year].label;
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        var ct = y.corporationTax;
+        var marginalCT = ct.mainRate + ct.fraction * 100;
+        row("Corporation tax", UKTax.pct(ct.smallRate, 0) + " to " + gbp(ct.lowerLimit)
+            + "; " + UKTax.pct(marginalCT, 1) + " between " + gbp(ct.lowerLimit) + " and "
+            + gbp(ct.upperLimit) + "; " + UKTax.pct(ct.mainRate, 0) + " above");
+        row("Marginal relief fraction", "3/200, which is what makes the middle band "
+            + UKTax.pct(marginalCT, 1) + " rather than " + UKTax.pct(ct.mainRate, 0));
+        row("Associated companies", "both limits divided by 1 plus the number of them");
+        row("Personal allowance", gbp(y.personalAllowance) + ", withdrawn at 50p per pound above "
+            + gbp(y.taperStart) + " and gone at " + gbp(UKTax.taperEnd(y)));
+        row("Dividend allowance", gbp(y.dividends.allowance));
+        row("Dividend rates", y.dividends.rates.map(function (r, i) {
+            return UKTax.pct(r, 2) + " (" + ["basic", "higher", "additional"][i] + ")"; }).join("; "));
+        row("Employer NI", UKTax.pct(y.employerNI.rate, 0) + " above "
+            + gbp(y.employerNI.secondaryThreshold) + "; employment allowance "
+            + gbp(y.employerNI.employmentAllowance));
+        row("Employee NI", UKTax.pct(y.employeeNI.mainRate, 0) + " from "
+            + gbp(y.employeeNI.primaryThreshold) + " to " + gbp(y.employeeNI.upperEarningsLimit)
+            + ", then " + UKTax.pct(y.employeeNI.upperRate, 0));
+        row("Income tax on salary", REGIONS.filter(function (r) { return r.id === state.region; })[0].label
+            + ": " + y.nonSavings[state.region].map(function (b) {
+                return UKTax.pct(b.rate, 0); }).join("/") + " across its bands");
+        row("Pension annual allowance", gbp(y.pension.annualAllowance) + ", with "
+            + UKTax.pct(y.pension.taxFreeShare, 0) + " of the pot drawn tax free");
+        row("Assumed exit charges", "retained profit at " + UKTax.pct(y.cgt.badr, 0)
+            + " (business asset disposal relief), pension at "
+            + UKTax.pct(PENSION_EXIT_RATE, 0) + " on the taxable three-quarters");
+        host.appendChild(dl);
+    }
+
+    /* The worst stretch on the salary-to-allowance route, found rather than
+          asserted, so the note in the panel cannot go stale when a rate changes.
+          A £100 scan is fine because the band is tens of thousands of pounds wide
+          and the rate inside it is flat. Cached on everything that moves it: the
+          exit charge does not, because this route leaves nothing behind. */
+    var peakCache = {};
+    function peakBand() {
+        var key = [state.year, state.region, state.associates, state.ea].join("|");
+        if (peakCache[key]) return peakCache[key];
+        var best = -1, from = 0, to = 0;
+        for (var p = 0; p <= 500000; p += 100) {
+            var r = marginalAt("toPA", p);
+            if (r > best + 1e-6) { best = r; from = p; to = p; }
+            else if (r > best - 1e-6) { to = p; }
+        }
+        return (peakCache[key] = { rate: best, from: from, to: to });
+    }
+
+    function renderPeakNote() {
+        var pk = peakBand();
+        document.getElementById("peak-rate").textContent = pct(pk.rate);
+        document.getElementById("peak-range").textContent = pk.to > pk.from
+            ? "from about " + gbp(pk.from) + " to about " + gbp(pk.to) + " of profit"
+            : "only at about " + gbp(pk.from) + " of profit";
+    }
+
+    /* Where the profit goes, at the profit asked about. Rows that are zero for
+          every route on screen are dropped rather than printed as a column of
+          dashes. */
+    var FLOWS = [
+        { key: "salary",       label: "Salary" },
+        { key: "erNI",         label: "Employer NI" },
+        { key: "contribution", label: "Pension contribution" },
+        { key: "ct",           label: "Corporation tax" },
+        { key: "dividend",     label: "Dividend paid" },
+        { key: "retained",     label: "Retained in the company" }
+    ];
+    var CHARGES = [
+        { key: "incomeTax", label: "Income tax on salary and dividends" },
+        { key: "eeNI",      label: "Employee NI" }
+    ];
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        if (!current.length) return;
+        var results = current.map(function (s) { return outcome(s.id, state.profit); });
+
+        var cap = document.createElement("caption");
+        cap.textContent = "Every pound of " + gbp(state.profit) + " of profit, "
+            + YEARS[state.year].label + ". The first block is where the company sends it; the "
+            + "second is what the owner is charged on what reaches them.";
+        tableEl.appendChild(cap);
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        var th0 = document.createElement("th");
+        th0.scope = "col";
+        th0.textContent = "";
+        hr.appendChild(th0);
+        current.forEach(function (s) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            var k = document.createElement("span");
+            k.className = "th-key";
+            k.style.background = "var(" + s.cssVar + ")";
+            th.appendChild(k);
+            th.appendChild(document.createTextNode(s.short));
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        function addRow(label, valueFor, cls) {
+            var tr = document.createElement("tr");
+            if (cls) tr.className = cls;
+            var td0 = document.createElement("td");
+            td0.textContent = label;
+            tr.appendChild(td0);
+            results.forEach(function (o, i) {
+                var td = document.createElement("td");
+                td.textContent = valueFor(o, current[i]);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+        function anyNonZero(key) {
+            return results.some(function (o) { return Math.abs(o[key]) > 0.005; });
+        }
+
+        FLOWS.forEach(function (f) {
+            if (anyNonZero(f.key)) {
+                addRow(f.label, function (o) { return money(o[f.key]); });
+            }
+        });
+        CHARGES.forEach(function (f) {
+            if (anyNonZero(f.key)) {
+                addRow(f.label, function (o) { return money(o[f.key]); });
+            }
+        });
+        addRow("Tax paid this year", function (o) { return money(o.taxNow); }, "rule-above total");
+        if (state.exit && anyNonZero("exit")) {
+            addRow("Assumed charge on the way out", function (o) { return money(o.exit); });
+            addRow("Total tax", function (o) { return money(o.tax); }, "total");
+        }
+        addRow("In the owner's hands", function (o) { return money(o.inHand); }, "total");
+        if (anyNonZero("deferred")) {
+            addRow("Left in the company or the pension", function (o) { return money(o.deferred); });
+        }
+        addRow("Effective rate", function (o) {
+            return o.profit > 0 ? pct(o.tax / o.profit * 100) : "—"; }, "rule-above");
+        addRow("Rate on the next pound", function (o, s) {
+            return pct(marginalAt(s.id, state.profit)); });
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Hover
+          ============================================================ */
+
+    function clearHover() {
+        var g = svg.querySelector("#hover");
+        if (g) while (g.firstChild) g.removeChild(g.firstChild);
+        tip.classList.remove("on");
+    }
+
+    function drawHover(profit) {
+        var g = svg.querySelector("#hover");
+        if (!g || !current.length) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+        var px = xS(profit);
+        g.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2), y2: Y0,
+            class: "crosshair" }));
+        current.forEach(function (s) {
+            var c = el("circle", { cx: px.toFixed(2), cy: yS(valueAt(s.id, profit)).toFixed(2),
+                r: 4.5, class: "hover-dot" });
+            c.style.fill = "var(" + s.cssVar + ")";
+            g.appendChild(c);
+        });
+
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(div("tip-head", gbp(profit) + " of profit"));
+        current.forEach(function (s) {
+            var o = outcome(s.id, profit);
+            var row = div("tip-row");
+            var key = div("tip-key");
+            key.style.background = "var(" + s.cssVar + ")";
+            if (s.dash) key.style.background =
+                "repeating-linear-gradient(90deg, var(" + s.cssVar + ") 0 5px, transparent 5px 8px)";
+            row.appendChild(key);
+            row.appendChild(div("tip-name", s.short));
+            row.appendChild(div("tip-val", fmtValue(valueAt(s.id, profit))));
+            tip.appendChild(row);
+            tip.appendChild(div("tip-band", money(o.tax) + " tax · " + money(o.inHand) + " in hand"
+                + (o.deferred > 0.005 ? " · " + money(o.deferred) + " left behind" : "")));
+        });
+
+        var rect = svg.getBoundingClientRect();
+        var scale = rect.width / VB_W;
+        var left = px * scale + 16;
+        tip.classList.add("on");
+        var tw = tip.offsetWidth;
+        if (left + tw > rect.width - 4) left = px * scale - tw - 16;
+        tip.style.left = Math.max(4, left) + "px";
+        tip.style.top = Math.max(4, Math.min(rect.height - tip.offsetHeight - 4,
+                                             rect.height * 0.16)) + "px";
+    }
+
+    function profitFromEvent(e) {
+        var rect = svg.getBoundingClientRect();
+        var px = ((e.clientX - rect.left) / rect.width) * VB_W;
+        if (px < M.l - 2 || px > PLOT_R + 2) return null;
+        var grain = state.xMax <= 100000 ? 500 : 1000;
+        var v = Math.round(xInv(px) / grain) * grain;
+        return Math.max(0, Math.min(state.xMax, v));
+    }
+
+    svg.addEventListener("pointermove", function (e) {
+        if (!current.length) return;
+        var v = profitFromEvent(e);
+        if (v === null) { hoverX = null; clearHover(); return; }
+        hoverX = v; drawHover(v);
+    });
+    svg.addEventListener("pointerleave", function () { hoverX = null; clearHover(); });
+    svg.addEventListener("keydown", function (e) {
+        if (!current.length) return;
+        var stepK = e.shiftKey ? state.xMax / 20 : state.xMax / 100;
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            var base = hoverX === null ? state.xMax / 2 : hoverX;
+            hoverX = Math.max(0, Math.min(state.xMax,
+                Math.round((base + (e.key === "ArrowRight" ? stepK : -stepK)) / 500) * 500));
+            drawHover(hoverX);
+            e.preventDefault();
+        } else if (e.key === "Escape") { hoverX = null; clearHover(); }
+    });
+    svg.addEventListener("blur", function () { hoverX = null; clearHover(); });
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    var profitEl = document.getElementById("profit");
+
+    function makeChip(label, checked, tickColor, onToggle) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", checked ? "true" : "false");
+        if (tickColor) b.style.setProperty("--tick-col", tickColor);
+        var t = document.createElement("span");
+        t.className = "tick";
+        t.setAttribute("aria-hidden", "true");
+        b.appendChild(t);
+        b.appendChild(document.createTextNode(label));
+        b.addEventListener("click", function () {
+            var next = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", next ? "true" : "false");
+            onToggle(next);
+            hoverX = null;
+            render();
+        });
+        return b;
+    }
+
+    var chipHost = document.getElementById("strategy-chips");
+    STRATEGIES.forEach(function (s) {
+        chipHost.appendChild(makeChip(s.short, state.on[s.id],
+            "var(" + s.cssVar + ")", function (on) { state.on[s.id] = on; }));
+    });
+
+    function readProfit() {
+        var raw = profitEl.value.replace(/[£,\s]/g, "");
+        var n = Number(raw);
+        state.profit = (raw !== "" && isFinite(n) && n >= 0) ? n : 0;
+    }
+
+    profitEl.addEventListener("input", function () { readProfit(); render(); });
+    profitEl.addEventListener("blur", function () {
+        if (state.profit > 0) profitEl.value = state.profit.toLocaleString("en-GB");
+    });
+
+    function bind(id, fn) {
+        document.getElementById(id).addEventListener("change", function (e) {
+            fn(e.target.value); hoverX = null; render();
+        });
+    }
+    bind("year-sel",   function (v) { state.year = v; });
+    bind("region-sel", function (v) { state.region = v; });
+    bind("assoc-sel",  function (v) { state.associates = Number(v); });
+    bind("ea-sel",     function (v) { state.ea = v === "yes"; });
+    bind("exit-sel",   function (v) { state.exit = v === "yes"; });
+    bind("view-sel",   function (v) { state.view = v; });
+    bind("range-sel",  function (v) { state.xMax = Number(v); });
+
+    function buildOptions(selId, items, selected) {
+        var sel = document.getElementById(selId);
+        items.forEach(function (it) {
+            var o = document.createElement("option");
+            o.value = it.value;
+            o.textContent = it.label;
+            if (it.value === selected) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          Every figure pinned below was worked out by hand from the published
+          rates before this file was written, so it tests the code rather than
+          restating it. The structural checks assert what the notes claim: that
+          corporation tax is continuous at both limits and 26.5% between them,
+          that the all-salary route leaves exactly nothing behind, that every
+          pound of profit is accounted for on every route, and that the routes
+          which pay no taxable salary give the same answer in Scotland as in
+          the rest of the UK.
+          ============================================================ */
+
+    // [profit, associated companies, corporation tax due]
+    var PINNED_CT = [
+        [40000,  0,  7600],
+        [50000,  0,  9500],
+        [100000, 0, 22750],
+        [200000, 0, 49250],
+        [250000, 0, 62500],
+        [300000, 0, 75000],
+        [100000, 1, 24625],
+        // Four associates divide both limits by five, to £10,000 and £50,000,
+        // so £12,500 of profit is inside the relief band rather than under it.
+        [9000,   4,  1710],
+        [12500,  4,  2562.50],
+        [60000,  4, 15000]
+    ];
+
+    /* [route, profit, salary, employer NI, CT, dividend, income tax, employee NI]
+          at £50,000 of profit, 2026/27, rest of the UK, no employment allowance.
+          Worked through by hand: salary to the allowance leaves £36,294.50 of
+          taxable profit, 19% of which is £6,895.96, leaving £29,398.55 of dividend,
+          of which £28,898.55 is taxed at 10.75%. */
+    var PINNED_50K = [
+        ["toPA",        12570,     1135.50, 6895.955, 29398.545, 3106.594, 0],
+        ["toThreshold",  5000,           0, 8550,     36450,     3050.850, 0],
+        ["allDividend",     0,           0, 9500,     40500,     2948.725, 0],
+        ["allSalary", 44130.435, 5869.565,  0,            0,     6312.087, 2524.835],
+        ["retain",          0,           0, 9500,         0,            0, 0],
+        ["pension",         0,           0,    0,         0,            0, 0]
+    ];
+
+    /* The same at £200,000, which is inside the corporation tax marginal relief
+          band and above the point where the personal allowance has gone. Taxable
+          profit is £186,294.50, so corporation tax is 25% of it less 3/200 of the
+          £63,705.50 it sits below the upper limit, and the £140,676.46 dividend is
+          split across all three dividend rates. */
+    var PINNED_200K = [
+        ["toPA",        12570, 1135.50, 45618.0425, 140676.4575, 47481.416, 0],
+        ["allDividend",     0,       0, 49250,      150750,      45336.335, 0]
+    ];
+
+    /* [route, profit, marginal rate on the next pound of profit], 2026/27, rUK.
+          The employer NI figures are 15/115 and 100/115 of a pound, because a pound
+          of profit spent on pay has to cover the company's NI on it as well. */
+    var PINNED_MARGINAL = [
+        ["toPA",        30000, 27.7075],   // 19% CT, then 10.75% of the 81p left
+        ["toPA",        60000, 27.7075],
+        ["toPA",       120000, 52.7763],   // 26.5% CT, then 35.75% of the 73.5p left
+        ["toPA",       140000, 69.3138],   // the same, plus the allowance taper
+        ["toPA",       200000, 55.4223],   // 26.5% CT, then 39.35%
+        ["toPA",       300000, 54.5125],   // 25% CT, then 39.35% of the 75p left
+        ["toThreshold", 30000, 27.7075],
+        ["retain",      30000, 19],
+        ["retain",     100000, 26.5],
+        ["retain",     300000, 25],
+        ["pension",     30000, 0],         // every pound goes into the pension
+        ["pension",     62000, 0],         // still under the annual allowance
+        ["pension",     70000, 13.0435],   // past it, and paying employer NI
+        ["pension",     90000, 27.7075],   // past it, and paying corporation tax
+        ["allDividend", 30000, 27.7075],
+        ["allSalary",    3000, 0],         // below every threshold there is
+        ["allSalary",   20000, 37.3913],   // employer NI, then 20% + 8% of the rest
+        ["allSalary",  100000, 49.5652]    // employer NI, then 40% + 2% of the rest
+    ];
+
+    function runSelfChecks() {
+        var harness = UKTax.checker();
+        var check = harness.check, near = harness.near;
+        var saved = { year: state.year, region: state.region, associates: state.associates,
+                      ea: state.ea, exit: state.exit };
+        function setUp(year, region, associates, ea, exit) {
+            state.year = year; state.region = region; state.associates = associates;
+            state.ea = ea; state.exit = !!exit;
+        }
+
+        /* -- corporation tax, pinned by hand ------------------------------ */
+        PINNED_CT.forEach(function (t) {
+            var y = YEARS["2026-27"];
+            var got = UKTax.corporationTax(y, t[0], t[1]);
+            check("CT on " + t[0] + " with " + t[1] + " associates is " + t[2],
+                  near(got, t[2], 0.005), got.toFixed(2));
+        });
+
+        /* -- and it is continuous at both limits, with the 26.5% band ----- */
+        YEAR_ORDER.forEach(function (yid) {
+            var y = YEARS[yid], ct = y.corporationTax;
+            [0, 1, 3].forEach(function (n) {
+                var lo = ct.lowerLimit / (1 + n), hi = ct.upperLimit / (1 + n);
+                check(yid + " CT is continuous at the lower limit with " + n + " associates",
+                      near(UKTax.corporationTax(y, lo, n),
+                           UKTax.corporationTax(y, lo + 0.0001, n), 0.001));
+                check(yid + " CT is continuous at the upper limit with " + n + " associates",
+                      near(UKTax.corporationTax(y, hi, n),
+                           UKTax.corporationTax(y, hi - 0.0001, n), 0.001));
+                check(yid + " CT at the lower limit is the small rate with " + n + " associates",
+                      near(UKTax.corporationTax(y, lo, n), lo * ct.smallRate / 100, 0.005));
+                check(yid + " CT at the upper limit is the main rate with " + n + " associates",
+                      near(UKTax.corporationTax(y, hi, n), hi * ct.mainRate / 100, 0.005));
+                var mid = (lo + hi) / 2;
+                var slope = (UKTax.corporationTax(y, mid + 0.05, n)
+                           - UKTax.corporationTax(y, mid, n)) / 0.05 * 100;
+                check(yid + " CT marginal in the relief band is 26.5% with " + n + " associates",
+                      near(slope, 26.5, 0.001), slope.toFixed(4));
+            });
+            // Monotonic, and never above the main rate overall.
+            var prev = -1;
+            for (var p = 0; p <= 400000; p += 997) {
+                var t = UKTax.corporationTax(y, p, 0);
+                check(yid + " CT rises with profit at " + p, t >= prev - 1e-9);
+                check(yid + " CT never exceeds the main rate at " + p,
+                      t <= p * ct.mainRate / 100 + 1e-9);
+                prev = t;
+            }
+        });
+
+        /* -- the £50,000 worked example, route by route ------------------- */
+        setUp("2026-27", "ruk", 0, false, false);
+        PINNED_50K.forEach(function (t) {
+            var o = outcome(t[0], 50000);
+            [["salary", 1], ["erNI", 2], ["ct", 3], ["dividend", 4],
+             ["incomeTax", 5], ["eeNI", 6]].forEach(function (f) {
+                check("£50k " + t[0] + " " + f[0] + " is " + t[f[1]],
+                      near(o[f[0]], t[f[1]], 0.01), o[f[0]].toFixed(3) + " vs " + t[f[1]]);
+            });
+        });
+
+        /* -- and the £200,000 worked example ------------------------------ */
+        setUp("2026-27", "ruk", 0, false, false);
+        PINNED_200K.forEach(function (t) {
+            var o = outcome(t[0], 200000);
+            [["salary", 1], ["erNI", 2], ["ct", 3], ["dividend", 4],
+             ["incomeTax", 5], ["eeNI", 6]].forEach(function (f) {
+                check("£200k " + t[0] + " " + f[0] + " is " + t[f[1]],
+                      near(o[f[0]], t[f[1]], 0.01), o[f[0]].toFixed(3) + " vs " + t[f[1]]);
+            });
+        });
+
+        /* -- the pinned marginal rates ------------------------------------ */
+        PINNED_MARGINAL.forEach(function (t) {
+            setUp("2026-27", "ruk", 0, false, false);
+            var got = marginalAt(t[0], t[1]);
+            check("marginal on " + t[0] + " at " + t[1] + " is " + t[2] + "%",
+                  near(got, t[2], 0.0001), got.toFixed(4));
+        });
+
+        /* -- every pound of profit is accounted for, on every route ------- */
+        ["2025-26", "2026-27"].forEach(function (yid) {
+            ["ruk", "sco"].forEach(function (region) {
+                [0, 2].forEach(function (assoc) {
+                    [false, true].forEach(function (ea) {
+                        setUp(yid, region, assoc, ea, false);
+                        STRATEGIES.forEach(function (s) {
+                            [0, 4999, 12570, 61234, 137000, 400000].forEach(function (p) {
+                                var o = outcome(s.id, p);
+                                var sum = o.salary + o.erNI + o.ct + o.dividend
+                                        + o.retained + o.contribution;
+                                check("profit adds up for " + s.id + " at " + p + " " + yid
+                                      + "/" + region + "/" + assoc + "/" + ea,
+                                      near(sum, p, 0.000001), sum.toFixed(6) + " vs " + p);
+                                check("what the owner holds adds up for " + s.id + " at " + p,
+                                      near(o.profit - o.taxNow - o.deferred, o.inHand, 0.000001));
+                                check("no negative tax for " + s.id + " at " + p, o.taxNow >= -1e-9);
+                                check("no negative net for " + s.id + " at " + p, o.kept >= -1e-9);
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        /* -- the all-salary route really does leave nothing behind -------- */
+        [false, true].forEach(function (ea) {
+            setUp("2026-27", "ruk", 0, ea, false);
+            [0, 3000, 5000, 20000, 75001, 250000].forEach(function (p) {
+                var o = outcome("allSalary", p);
+                check("all-salary leaves no profit at " + p + " (EA " + ea + ")",
+                      near(o.ct, 0, 0.000001) && near(o.dividend, 0, 0.000001),
+                      o.ct.toFixed(6));
+                check("all-salary costs exactly the profit at " + p + " (EA " + ea + ")",
+                      near(o.salary + o.erNI, p, 0.000001), (o.salary + o.erNI).toFixed(6));
+            });
+        });
+
+        /* -- routes paying no taxable salary cannot depend on the region -- */
+        [0, 25000, 50000, 90000, 125000].forEach(function (p) {
+            ["allDividend", "retain"].forEach(function (id) {
+                setUp("2026-27", "ruk", 0, false, false);
+                var a = outcome(id, p).taxNow;
+                setUp("2026-27", "sco", 0, false, false);
+                var b = outcome(id, p).taxNow;
+                check(id + " at " + p + " is the same in Scotland", near(a, b, 0.000001),
+                      a.toFixed(4) + " vs " + b.toFixed(4));
+            });
+            // Salary to the allowance is region-free only while the allowance is
+            // untapered; above that a slice of the salary becomes taxable and the
+            // Scottish rates bite. £125,000 of profit is still below the taper.
+            setUp("2026-27", "ruk", 0, false, false);
+            var c = outcome("toPA", p).taxNow;
+            setUp("2026-27", "sco", 0, false, false);
+            var d = outcome("toPA", p).taxNow;
+            check("salary to the allowance at " + p + " is the same in Scotland",
+                  near(c, d, 0.000001), c.toFixed(4) + " vs " + d.toFixed(4));
+        });
+        // ...and above the taper it must NOT be, or the region control does nothing.
+        setUp("2026-27", "ruk", 0, false, false);
+        var rukHigh = outcome("toPA", 250000).taxNow;
+        setUp("2026-27", "sco", 0, false, false);
+        var scoHigh = outcome("toPA", 250000).taxNow;
+        check("Scotland differs once the allowance has tapered away",
+              Math.abs(rukHigh - scoHigh) > 1, rukHigh.toFixed(2) + " vs " + scoHigh.toFixed(2));
+
+        /* -- the employment allowance can only ever help ------------------ */
+        ["2025-26", "2026-27"].forEach(function (yid) {
+            STRATEGIES.forEach(function (s) {
+                [10000, 50000, 200000].forEach(function (p) {
+                    setUp(yid, "ruk", 0, false, false);
+                    var without = outcome(s.id, p).kept;
+                    setUp(yid, "ruk", 0, true, false);
+                    var with_ = outcome(s.id, p).kept;
+                    check("the employment allowance never hurts " + s.id + " at " + p + " " + yid,
+                          with_ >= without - 1e-9, without.toFixed(2) + " vs " + with_.toFixed(2));
+                });
+            });
+        });
+
+        /* -- more associated companies can only ever cost more ------------ */
+        [60000, 150000, 400000].forEach(function (p) {
+            var prev = -1;
+            [0, 1, 2, 3, 4].forEach(function (n) {
+                setUp("2026-27", "ruk", n, false, false);
+                var t = outcome("retain", p).taxNow;
+                check("associates never reduce the tax at " + p + " with " + n,
+                      t >= prev - 1e-9, t.toFixed(2));
+                prev = t;
+            });
+        });
+
+        /* -- the exit charge only ever adds, and only to deferred money --- */
+        STRATEGIES.forEach(function (s) {
+            [50000, 200000].forEach(function (p) {
+                setUp("2026-27", "ruk", 0, false, false);
+                var off = outcome(s.id, p);
+                setUp("2026-27", "ruk", 0, false, true);
+                var on = outcome(s.id, p);
+                check("the exit charge does not change the tax paid now for " + s.id + " at " + p,
+                      near(off.taxNow, on.taxNow, 0.000001));
+                check("the exit charge never reduces the total for " + s.id + " at " + p,
+                      on.tax >= off.tax - 1e-9);
+                check("the exit charge is nil without deferred money for " + s.id + " at " + p,
+                      on.deferred > 0.005 || near(on.exit, 0, 1e-9));
+            });
+        });
+
+        /* -- the pension route defers everything below the allowance ------ */
+        ["2025-26", "2026-27"].forEach(function (yid) {
+            var aa = YEARS[yid].pension.annualAllowance;
+            setUp(yid, "ruk", 0, false, false);
+            [1000, aa / 2, aa].forEach(function (p) {
+                var o = outcome("pension", p);
+                check(yid + " pension takes the whole profit at " + p,
+                      near(o.contribution, p, 0.000001) && near(o.taxNow, 0, 1e-9));
+            });
+            var over = outcome("pension", aa + 50000);
+            check(yid + " pension stops at the annual allowance",
+                  near(over.contribution, aa, 0.000001), over.contribution.toFixed(2));
+        });
+
+        /* -- the chart's steps are in the right places ---------------------
+              The marginal view is drawn as a step function that turns only at the
+              kinks kinksFor() reports, so a kink it misses is a line that quietly
+              draws the wrong rate over a whole stretch of the chart -- which is
+              exactly what happened to the pension route the first time. Between
+              two consecutive kinks the rate must therefore be flat, and this
+              asserts it: a missing kink makes the samples inside an interval
+              disagree with each other. ------------------------------------------ */
+        var savedMax = state.xMax;
+        [250000, 1000000].forEach(function (xMax) {
+            ["ruk", "sco"].forEach(function (region) {
+                [0, 3].forEach(function (assoc) {
+                    [false, true].forEach(function (ea) {
+                        setUp("2026-27", region, assoc, ea, false);
+                        state.xMax = xMax;
+                        STRATEGIES.forEach(function (s) {
+                            var edges = [0].concat(kinksFor(s.id)).concat([xMax]);
+                            for (var i = 0; i + 1 < edges.length; i++) {
+                                var a = edges[i], b = edges[i + 1];
+                                if (b - a < 1) continue;
+                                var ref = marginalAt(s.id, a + (b - a) * 0.5);
+                                [0.05, 0.25, 0.75, 0.95].forEach(function (f) {
+                                    var r = marginalAt(s.id, a + (b - a) * f);
+                                    check("the rate is flat between kinks for " + s.id + " from "
+                                          + Math.round(a) + " to " + Math.round(b) + " (" + region
+                                          + "/" + assoc + "/" + ea + "/" + xMax + ")",
+                                          near(r, ref, 0.0002), r.toFixed(6) + " vs " + ref.toFixed(6));
+                                });
+                            }
+                        });
+                    });
+                });
+            });
+        });
+        state.xMax = savedMax;
+
+        /* -- effective rate is below the marginal rate, everywhere -------- */
+        setUp("2026-27", "ruk", 0, false, false);
+        STRATEGIES.forEach(function (s) {
+            for (var p = 5000; p <= 300000; p += 4321) {
+                check("effective is at or below marginal for " + s.id + " at " + p,
+                      effectiveAt(s.id, p) <= marginalAt(s.id, p) + 1e-6,
+                      effectiveAt(s.id, p).toFixed(3) + " vs " + marginalAt(s.id, p).toFixed(3));
+            }
+        });
+
+        /* -- and the total tax only ever rises with profit ----------------- */
+        ["2025-26", "2026-27"].forEach(function (yid) {
+            [false, true].forEach(function (exit) {
+                setUp(yid, "ruk", 0, false, exit);
+                STRATEGIES.forEach(function (s) {
+                    var prev = -1;
+                    for (var p = 0; p <= 400000; p += 811) {
+                        var t = outcome(s.id, p).tax;
+                        check("tax rises with profit for " + s.id + " at " + p + " " + yid,
+                              t >= prev - 1e-9, t.toFixed(4));
+                        prev = t;
+                    }
+                });
+            });
+        });
+
+        /* -- the two years must differ: 2026/27 raised the dividend rates -- */
+        [50000, 200000].forEach(function (p) {
+            setUp("2025-26", "ruk", 0, false, false);
+            var a = outcome("allDividend", p).taxNow;
+            setUp("2026-27", "ruk", 0, false, false);
+            var b = outcome("allDividend", p).taxNow;
+            check("2026/27 charges more on dividends than 2025/26 at " + p, b > a,
+                  a.toFixed(2) + " vs " + b.toFixed(2));
+        });
+
+        state.year = saved.year; state.region = saved.region;
+        state.associates = saved.associates; state.ea = saved.ea; state.exit = saved.exit;
+
+        harness.report("selfcheck", "across " + STRATEGIES.length + " routes and "
+            + YEAR_ORDER.length + " tax years", "__corpTaxSelfChecks");
+
+        // If the calendar has moved past the years covered, say so rather than
+        // quietly showing stale rates.
+        var missing = !YEARS[UKTax.currentTaxYearId()] ? UKTax.currentTaxYearId() : null;
+        if (missing) {
+            var out = document.getElementById("selfcheck");
+            var warn = document.createElement("p");
+            warn.className = "selfcheck bad";
+            warn.textContent = "⚠ The " + missing.replace("-", "/")
+                + " tax year has begun but is not covered here — check the rates.";
+            out.parentNode.insertBefore(warn, out.nextSibling);
+        }
+    }
+
+    buildOptions("year-sel", YEAR_ORDER.map(function (id) {
+        return { value: id, label: YEARS[id].label }; }), state.year);
+    buildOptions("region-sel", REGIONS.map(function (r) {
+        return { value: r.id, label: r.label }; }), state.region);
+    readProfit();
+    render();
+    runSelfChecks();
+    window.addEventListener("resize", function () { if (hoverX !== null) drawHover(hoverX); });
+})();
+</script>
+</body>
+</html>

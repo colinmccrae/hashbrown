@@ -86,8 +86,21 @@ var UKTax = (function () {
             dividends: { allowance: 500, rates: [8.75, 33.75, 39.35] },
             // BADR rose from 10% to 14% on 6 April 2025.
             cgt: { aea: 3000, lower: 18, upper: 24, badr: 14, badrLimit: 1000000 },
+            /* Corporation tax is charged by FINANCIAL year (1 April to 31 March),
+                  not by tax year, so the two calendars do not line up. It happens not
+                  to matter for the years here: FY2025 and FY2026 carry the same rates,
+                  unchanged since the structure was introduced on 1 April 2023. If a
+                  future financial year diverges mid-tax-year, this needs splitting.
+                  Marginal relief is main rate on the whole profit, less the fraction
+                  times the distance below the upper limit; the limits are divided by
+                  one plus the number of associated companies. */
+            corporationTax: { smallRate: 19, mainRate: 25, lowerLimit: 50000,
+                              upperLimit: 250000, fraction: 3 / 200 },
             employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
-            employerNI: { secondaryThreshold: 5000, rate: 15 },
+            employerNI: { secondaryThreshold: 5000, rate: 15, employmentAllowance: 10500 },
+            // The annual allowance has been £60,000 since 6 April 2023. The
+            // taper for high earners and unused carry-forward are not here.
+            pension: { annualAllowance: 60000, taxFreeShare: 25 },
             studentLoans: {
                 // No Plan 5: no Plan 5 repayments fell due before April 2026.
                 plans: [
@@ -143,8 +156,21 @@ var UKTax = (function () {
             dividends: { allowance: 500, rates: [10.75, 35.75, 39.35] },
             // BADR rose again, from 14% to 18%, on 6 April 2026.
             cgt: { aea: 3000, lower: 18, upper: 24, badr: 18, badrLimit: 1000000 },
+            /* Corporation tax is charged by FINANCIAL year (1 April to 31 March),
+                  not by tax year, so the two calendars do not line up. It happens not
+                  to matter for the years here: FY2025 and FY2026 carry the same rates,
+                  unchanged since the structure was introduced on 1 April 2023. If a
+                  future financial year diverges mid-tax-year, this needs splitting.
+                  Marginal relief is main rate on the whole profit, less the fraction
+                  times the distance below the upper limit; the limits are divided by
+                  one plus the number of associated companies. */
+            corporationTax: { smallRate: 19, mainRate: 25, lowerLimit: 50000,
+                              upperLimit: 250000, fraction: 3 / 200 },
             employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
-            employerNI: { secondaryThreshold: 5000, rate: 15 },
+            employerNI: { secondaryThreshold: 5000, rate: 15, employmentAllowance: 10500 },
+            // The annual allowance has been £60,000 since 6 April 2023. The
+            // taper for high earners and unused carry-forward are not here.
+            pension: { annualAllowance: 60000, taxFreeShare: 25 },
             studentLoans: {
                 plans: [
                     { id: "p1", label: "Plan 1", threshold: 26900, rate: 9 },
@@ -306,11 +332,75 @@ var UKTax = (function () {
         });
     }
 
+    /* A whole income tax position: where each slice of income sits and which
+          nil-rate bands reach it. Both the tax and the band labels are read from
+          the same object, so a label can never disagree with the number beside
+          it. Savings and dividends stack on top of other income in that order,
+          which is what makes the marginal rate on any of them depend on all of
+          the others.
+
+          The personal allowance is set against other income first, then savings,
+          then dividends. It may in fact be allocated in whichever way is most
+          beneficial; the conventional ordering is used here. */
+    function incomeTaxPosition(y, other, savings, dividends) {
+        other = Math.max(0, other);
+        savings = Math.max(0, savings);
+        dividends = Math.max(0, dividends);
+
+        var total = other + savings + dividends;
+        var pa = personalAllowance(y, total);
+        var paOther = Math.min(pa, other), rem = pa - paOther;
+        var paSav = Math.min(rem, savings); rem -= paSav;
+        var paDiv = Math.min(rem, dividends);
+
+        var oT = other - paOther, sT = savings - paSav, dT = dividends - paDiv;
+        var totalT = oT + sT + dT;
+
+        // The starting rate band is the first £5,000 of taxable income, so
+        // non-savings income eats into it before any interest gets there.
+        var srsUsed = Math.max(0, Math.min(sT, y.savings.startingRateBand - oT));
+        var psa = personalSavingsAllowance(y, totalT);
+        var psaUsed = Math.max(0, Math.min(psa, sT - srsUsed));
+        var daUsed = Math.min(y.dividends.allowance, dT);
+
+        return { pa: pa, paOther: paOther, paSav: paSav, paDiv: paDiv,
+                 oT: oT, sT: sT, dT: dT, totalT: totalT,
+                 srsUsed: srsUsed, psa: psa, psaUsed: psaUsed, daUsed: daUsed };
+    }
+
+    /* Income tax on a position. The nil-rate bands are not deductions: they sit
+          at the bottom of their slice and use up band space, which is why the taxed
+          remainder starts above them rather than where the slice began. */
+    function taxFromPosition(y, region, P) {
+        return sliceTax(0, P.oT, y.nonSavings[region])
+             + sliceTax(P.oT + P.srsUsed + P.psaUsed, P.sT - P.srsUsed - P.psaUsed,
+                        ukBands(y, y.savings.rates))
+             + sliceTax(P.oT + P.sT + P.daUsed, P.dT - P.daUsed, ukBands(y, y.dividends.rates));
+    }
+
+    function incomeTaxOn(y, region, other, savings, dividends) {
+        return taxFromPosition(y, region, incomeTaxPosition(y, other, savings, dividends));
+    }
+
     // The UK-wide bands savings and dividends are charged in, in taxable space.
     function ukBands(y, rates) {
         return [{ upTo: y.basicRateLimit,  rate: rates[0] },
                 { upTo: y.higherRateLimit, rate: rates[1] },
                 { upTo: Infinity,          rate: rates[2] }];
+    }
+
+    /* Corporation tax, including marginal relief. The relief makes the rate on
+          a pound of profit inside the band HIGHER than the main rate -- 26.5% against
+          25% on the standard figures -- because each extra pound of profit also
+          withdraws some relief. Continuous at both limits, which the tools assert. */
+    function corporationTax(y, profit, associates) {
+        var ct = y.corporationTax;
+        if (!(profit > 0)) return 0;
+        var n = 1 + Math.max(0, associates || 0);
+        var lower = ct.lowerLimit / n, upper = ct.upperLimit / n;
+        if (profit <= lower) return profit * ct.smallRate / 100;
+        if (profit >= upper) return profit * ct.mainRate / 100;
+        return profit * ct.mainRate / 100 - ct.fraction * (upper - profit);
     }
 
     function employeeNIBands(y) {
@@ -420,6 +510,9 @@ var UKTax = (function () {
         personalSavingsAllowance: personalSavingsAllowance,
         grossFor: grossFor, taxableFor: taxableFor,
         nonSavingsGross: nonSavingsGross, ukBands: ukBands,
+        incomeTaxPosition: incomeTaxPosition, taxFromPosition: taxFromPosition,
+        incomeTaxOn: incomeTaxOn,
+        corporationTax: corporationTax,
         employeeNIBands: employeeNIBands, employerNIBands: employerNIBands,
         gbp: gbp, gbpPence: gbpPence, gbpShort: gbpShort, pct: pct,
         checker: checker, currentTaxYearId: currentTaxYearId
