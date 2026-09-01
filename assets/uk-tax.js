@@ -86,6 +86,17 @@ var UKTax = (function () {
             dividends: { allowance: 500, rates: [8.75, 33.75, 39.35] },
             // BADR rose from 10% to 14% on 6 April 2025.
             cgt: { aea: 3000, lower: 18, upper: 24, badr: 14, badrLimit: 1000000 },
+            /* Inheritance tax. The nil-rate band, the residence nil-rate band and
+                  the £2,000,000 taper threshold are frozen to the end of 2030-31.
+                  100% agricultural and business property relief was UNCAPPED until
+                  5 April 2026, which `allowance: Infinity` states arithmetically so
+                  the same expression serves both years. */
+            inheritanceTax: {
+                rate: 40, reducedRate: 36, charityShare: 10,
+                nilRateBand: 325000, residenceNilRateBand: 175000,
+                taperThreshold: 2000000,
+                businessRelief: { allowance: Infinity, rateAbove: 100 }
+            },
             /* Corporation tax is charged by FINANCIAL year (1 April to 31 March),
                   not by tax year, so the two calendars do not line up. It happens not
                   to matter for the years here: FY2025 and FY2026 carry the same rates,
@@ -156,6 +167,18 @@ var UKTax = (function () {
             dividends: { allowance: 500, rates: [10.75, 35.75, 39.35] },
             // BADR rose again, from 14% to 18%, on 6 April 2026.
             cgt: { aea: 3000, lower: 18, upper: 24, badr: 18, badrLimit: 1000000 },
+            /* From 6 April 2026 the 100% agricultural and business property relief
+                  is capped. The cap was announced at £1,000,000 at the Autumn Budget
+                  2024 and raised to £2,500,000 on 23 December 2025. It is
+                  transferable between spouses, so a widowed estate has £5,000,000
+                  of it. Value above the cap gets 50% relief -- an effective 20%
+                  inheritance tax rate rather than nil. */
+            inheritanceTax: {
+                rate: 40, reducedRate: 36, charityShare: 10,
+                nilRateBand: 325000, residenceNilRateBand: 175000,
+                taperThreshold: 2000000,
+                businessRelief: { allowance: 2500000, rateAbove: 50 }
+            },
             /* Corporation tax is charged by FINANCIAL year (1 April to 31 March),
                   not by tax year, so the two calendars do not line up. It happens not
                   to matter for the years here: FY2025 and FY2026 carry the same rates,
@@ -436,11 +459,15 @@ var UKTax = (function () {
     function gbpPence(v) {
         return "£" + v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    /* Compact money for an axis tick. Goes up to millions: an inheritance tax
+          chart runs to £10,000,000, and "£10000k" is not a label. */
     function gbpShort(v) {
         if (v === 0) return "£0";
-        if (Math.abs(v) < 1000) return "£" + Math.round(v);
-        if (v % 1000 === 0) return "£" + (v / 1000) + "k";
-        return "£" + Math.round(v / 1000) + "k";
+        var a = Math.abs(v);
+        if (a < 1000) return "£" + Math.round(v);
+        if (a < 1000000) return "£" + (v % 1000 === 0 ? v / 1000 : Math.round(v / 1000)) + "k";
+        var m = Math.round(v / 10000) / 100;
+        return "£" + m + "m";
     }
     function pct(r, dp) {
         var f = Math.pow(10, dp === undefined ? 1 : dp);

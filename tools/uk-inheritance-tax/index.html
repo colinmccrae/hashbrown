@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UK Inheritance Tax &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="Inheritance tax against the size of the estate — the nil-rate bands, the 60% band where the residence band tapers away, the 2026 cap on agricultural and business property relief, and the charitable legacy that can leave the heirs better off.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* one nil-rate band */
+                --series-2:       #eb6834;  /* widowed, home to descendants */
+                --series-3:       #1baf7a;  /* nil-rate band and residence band */
+                --series-5:       #e87ba4;  /* widowed, no residence band */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                    --series-5:     #d55181;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            /* min-width: 0 all the way down. A flex item defaults to min-width:auto
+                  and refuses to shrink below its content, so a long option like
+                  "Widowed, home to direct descendants" pushed the whole page
+                  sideways at 320px. The select needs it, its wrapper needs it, and so
+                  does this row, which is itself a flex item of .controls. */
+            .ctl-pair {
+                display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end;
+                min-width: 0; max-width: 100%;
+            }
+            .viz-root .controls > div,
+            .ctl-pair > div { min-width: 0; max-width: 100%; }
+            .viz-root input.amount {
+                width: 9rem; font: inherit; font-size: 13px; color: var(--ink);
+                background: var(--surface); border: 1px solid var(--rule);
+                border-radius: 8px; padding: 6px 10px;
+            }
+            .viz-root input.amount:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .stat-group.is-taper { border-color: var(--axis); }
+            .stat-flag {
+                display: inline-block; font-size: 10px; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--accent); margin-left: 6px;
+            }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .cliff-rule { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; }
+            .cliff-note { fill: var(--text-secondary); font-size: 10.5px; font-weight: 600; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 230px; max-width: 300px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            tbody tr.rule-above td { border-top: 1px solid var(--axis); }
+            tbody tr.total td { font-weight: 600; }
+            tbody tr.total td:first-child { color: var(--text-primary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                /* A select sizes itself to its longest option and will not shrink
+                      below it, so a long option pushes the whole page sideways on a
+                      narrow screen without this. */
+                max-width: 100%;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style></head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Inheritance tax &mdash; <span id="year-heading">2026/27</span></h1>
+        <p class="lede">One rate, 40%, and almost nothing else about inheritance tax is simple.
+            The allowances depend on whether there is a home, who gets it and whether a spouse
+            died first; one of them is withdrawn above £2,000,000, which makes a 60% band out of
+            a 40% tax; and from April 2026 the relief that took farms and family companies out of
+            the charge entirely has a ceiling on it.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                <div>
+                    <span class="ctl-label" id="lbl-config">Whose estate</span>
+                    <div class="chips" role="group" aria-labelledby="lbl-config" id="config-chips"></div>
+                </div>
+                <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="estate">Estate</label>
+                        <input id="estate" class="amount" type="text" inputmode="numeric"
+                               value="2,200,000" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="year-sel">Tax year</label>
+                        <select id="year-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="business">Farm or business in it</label>
+                        <input id="business" class="amount" type="text" inputmode="numeric"
+                               value="0" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="charity">Left to charity</label>
+                        <input id="charity" class="amount" type="text" inputmode="numeric"
+                               value="0" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">View</label>
+                        <select id="view-sel">
+                            <option value="marginal" selected>Marginal rate</option>
+                            <option value="effective">Effective rate</option>
+                            <option value="tax">Tax due</option>
+                            <option value="heirs">The heirs keep</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="range-sel">Estate range</label>
+                        <select id="range-sel">
+                            <option value="1000000">&pound;0 &ndash; &pound;1m</option>
+                            <option value="3000000" selected>&pound;0 &ndash; &pound;3m</option>
+                            <option value="5000000">&pound;0 &ndash; &pound;5m</option>
+                            <option value="10000000">&pound;0 &ndash; &pound;10m</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats" id="stats"></div>
+
+            <div class="card">
+                <div class="plot-wrap">
+                    <svg class="chart" id="chart" viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet"
+                              role="img" tabindex="0" aria-label="Inheritance tax by size of estate."></svg>
+                    <div class="tip" id="tip" role="status" aria-live="polite"></div>
+                    <div class="empty" id="empty" hidden>Select at least one estate to plot.</div>
+                </div>
+                <div class="legend" id="legend"></div>
+            </div>
+            <p class="caption" id="caption"></p>
+
+            <section class="block">
+                <h2>Where the estate goes</h2>
+                <div class="tbl-scroll">
+                    <table id="table"></table>
+                </div>
+            </section>
+
+            <details class="notes">
+                <summary>Assumptions &amp; sources</summary>
+                <div class="figures" id="figures"></div>
+                <ul>
+                    <li><strong>Inheritance tax is UK-wide.</strong> Unlike income tax, it is not
+                        devolved: Scotland, Wales and Northern Ireland charge exactly what England
+                        does. This is the only tax tool on this site with no region control.</li>
+                    <li><strong>The 60% band is the residence nil-rate band being taken away.</strong>
+                        Above an estate of £2,000,000 it is withdrawn at £1 for every £2, so each
+                        extra pound of estate is itself taxed at 40% <em>and</em> exposes another
+                        50p to 40%. That is <strong id="taper-rate">60%</strong>, and it runs
+                        <span id="taper-range">&mdash;</span>. Above the top of that range the rate
+                        drops back to 40% &mdash; the only tax on this site where being richer
+                        lowers your marginal rate.</li>
+                    <li><strong>The £2,000,000 test ignores every relief and exemption.</strong> It
+                        is the estate after debts but before anything else, so a fully-relieved farm
+                        or trading company counts against it at full value, and so does a charitable
+                        legacy. A £3,000,000 business that pays no inheritance tax itself can still
+                        wipe out £350,000 of residence nil-rate band on the house next to it.</li>
+                    <li><strong>The residence nil-rate band is not automatic.</strong> It needs a
+                        home that is or was lived in, passing on death to children, grandchildren or
+                        their spouses. Left to a sibling, a niece, a friend or most trusts, it is
+                        not available at all &mdash; which is the difference between the two pairs of
+                        lines on the chart.</li>
+                    <li><strong>April 2026 puts a ceiling on farm and business relief.</strong> Until
+                        5 April 2026, qualifying agricultural and business property is 100% relieved
+                        with no limit: an estate of any size pays nothing on it. From 6 April 2026
+                        the 100% relief is capped, and value above the cap is relieved at 50% only
+                        &mdash; an effective rate of 20% rather than nil. The cap was announced at
+                        £1,000,000 and raised to £2,500,000 on 23 December 2025. It is transferable
+                        between spouses, so a widowed estate has twice it. Set the two years against
+                        each other with a farm or business in the estate and the whole of the change
+                        is the gap between the lines.</li>
+                    <li><strong>A charitable legacy can leave the heirs better off.</strong> Leave
+                        10% or more of the baseline amount to charity and the rate on the rest falls
+                        from 40% to 36%. Because that is a cliff rather than a slope, an estate just
+                        below the 10% line can give more away <em>and</em> hand the other
+                        beneficiaries more than they would otherwise have had. The tiles below work
+                        out where that line sits for the estate entered.</li>
+                    <li><strong>The baseline amount is not the estate.</strong> It is the estate less
+                        reliefs and less the ordinary nil-rate band &mdash; but <em>not</em> less the
+                        residence nil-rate band, which is left out of the test. So the 10% bar is
+                        higher than a quick calculation on the taxable figure suggests, and an estate
+                        that clears 10% of what it actually pays tax on can still miss the reduced
+                        rate.</li>
+                    <li><strong>What this does not model.</strong> A single death, with a will, an
+                        estate held outright and no trusts. Not here: <em>gifts made in the seven
+                        years before death</em> and the taper relief on them, which reduces the tax
+                        on a failed gift rather than its value and only applies where the gift itself
+                        exceeded the nil-rate band &mdash; the most misunderstood rule in the tax;
+                        the residence nil-rate band being capped at what the home is actually worth,
+                        assumed here to be at least the full band; downsizing addition; the
+                        50%-relief categories that existed before 2026, such as land or buildings
+                        used by a company the deceased controlled; unlisted and AIM shares, which
+                        from April 2026 get 50% relief and do not use up the cap; quick succession
+                        relief; woodlands, heritage and national-purpose exemptions; the spouse
+                        exemption and the £325,000 cap on it for a non-domiciled spouse; trusts and
+                        their ten-year charges; and unused pension funds, which come into the charge
+                        on 6 April 2027 and so fall outside both years here.</li>
+                    <li><strong>Rates and bands</strong> come from <code>/assets/uk-tax.js</code>,
+                        the shared module behind the other tax tools on this site. The nil-rate band,
+                        the residence nil-rate band and the £2,000,000 taper threshold are all frozen
+                        to the end of 2030&ndash;31, so the two years here differ only in the
+                        treatment of agricultural and business property.</li>
+                </ul>
+                <p class="selfcheck" id="selfcheck"></p>
+            </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">An illustration, not tax advice, and inheritance tax is a tax where the
+        wording of the will decides the answer. Nothing here knows what your estate is made of, who
+        it goes to or what you gave away in the last seven years. Take advice before acting on any
+        of it.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script src="/assets/uk-tax.js"></script>
+<script>
+(function () {
+    "use strict";
+
+    var YEARS = UKTax.YEARS, YEAR_ORDER = UKTax.YEAR_ORDER;
+
+    /* ============================================================
+          WHOSE ESTATE
+          ------------------------------------------------------------
+          Four estates, differing only in how many nil-rate bands they
+          have. `nrb` is 1 or 2 -- one for a first death, two where a
+          spouse died first without using theirs. `rnrb` is the same
+          count for the residence band, or 0 where no home passes to
+          direct descendants and it is not available at all.
+
+          The same 1-or-2 multiple runs the agricultural and business
+          relief allowance from April 2026, which is transferable on
+          exactly the same footing.
+          ============================================================ */
+
+    var CONFIGS = [
+        { id: "single",      nrb: 1, rnrb: 0, short: "Single",
+          label: "Single, no home to descendants",       cssVar: "--series-1", dash: null },
+        { id: "singleHome",  nrb: 1, rnrb: 1, short: "Single with a home",
+          label: "Single, home to direct descendants",   cssVar: "--series-3", dash: "7 4" },
+        { id: "widowed",     nrb: 2, rnrb: 0, short: "Widowed",
+          label: "Widowed, no home to descendants",      cssVar: "--series-5", dash: "5 3" },
+        { id: "widowedHome", nrb: 2, rnrb: 2, short: "Widowed with a home",
+          label: "Widowed, home to direct descendants",  cssVar: "--series-2", dash: "2 3" }
+    ];
+    var BY_ID = {};
+    CONFIGS.forEach(function (c) { BY_ID[c.id] = c; });
+
+    var state = {
+        year: YEAR_ORDER[0],
+        on: { single: true, singleHome: true, widowed: true, widowedHome: true },
+        estate: 2200000,
+        business: 0,
+        charity: 0,
+        view: "marginal",
+        xMax: 3000000
+    };
+
+    /* ============================================================
+          THE ENGINE
+          ------------------------------------------------------------
+          One function turns an estate and a configuration into every
+          number on the page. Nothing is stored that can be derived, so
+          a tile, a table cell and a point on the line cannot disagree.
+          ============================================================ */
+
+    function outcome(cfgId, estate) {
+        var y = YEARS[state.year], iht = y.inheritanceTax, cfg = BY_ID[cfgId];
+        estate = Math.max(0, estate);
+
+        // Whatever is entered as farm or business property, the estate cannot
+        // hold more of it than it is worth.
+        var qualifying = Math.min(Math.max(0, state.business), estate);
+
+        /* The taper test is on the estate after liabilities but BEFORE any
+              relief or exemption. So the fully-relieved farm still counts against
+              it, and so does the charitable legacy. That is the whole trap. */
+        var taper = Math.max(0, (estate - iht.taperThreshold) / 2);
+        var rnrbFull = cfg.rnrb * iht.residenceNilRateBand;
+        var rnrb = Math.max(0, rnrbFull - taper);
+        var nrb = cfg.nrb * iht.nilRateBand;
+
+        // 100% relief up to the allowance, then whatever is left over gets the
+        // lower rate. Before April 2026 the allowance is Infinity, which makes
+        // the second term vanish without a special case.
+        var br = iht.businessRelief;
+        var allowance = cfg.nrb * br.allowance;
+        var relieved = Math.min(qualifying, allowance)
+                     + Math.max(0, qualifying - allowance) * br.rateAbove / 100;
+        var chargeable = estate - relieved;
+
+        /* The 10% test is against the estate less reliefs and less the ORDINARY
+              nil-rate band only. The residence band is not deducted, so the bar is
+              higher than the taxable figure suggests. */
+        var baseline = Math.max(0, chargeable - nrb);
+        var threshold = baseline * iht.charityShare / 100;
+        var gift = Math.min(Math.max(0, state.charity), estate);
+        var qualifies = baseline > 0 && gift >= threshold;
+        var rate = qualifies ? iht.reducedRate : iht.rate;
+
+        var taxable = Math.max(0, chargeable - gift - nrb - rnrb);
+        var tax = taxable * rate / 100;
+
+        return { id: cfgId, estate: estate,
+                 qualifying: qualifying, relieved: relieved, chargeable: chargeable,
+                 taper: taper, rnrbFull: rnrbFull, rnrb: rnrb, nrb: nrb,
+                 bandsLost: rnrbFull - rnrb,
+                 baseline: baseline, threshold: threshold, gift: gift,
+                 qualifies: qualifies, rate: rate, taxable: taxable, tax: tax,
+                 heirs: estate - gift - tax };
+    }
+
+    function effectiveAt(id, estate) {
+        if (!(estate > 0)) return 0;
+        return outcome(id, estate).tax / estate * 100;
+    }
+
+    /* The rate on the next pound of estate. Every line is piecewise linear in
+          the estate, so a difference quotient is exact away from a kink -- but a
+          window centred on one straddles two rates and reports neither. The window
+          is offset to the right, which reads the band the next pound is actually
+          in, and is 1p wide because at £10,000,000 of estate the tax figures are
+          large enough for a narrower one to be measuring floating-point noise. */
+    function marginalAt(id, estate) {
+        var a = outcome(id, estate + 0.002).tax;
+        var b = outcome(id, estate + 0.012).tax;
+        return (b - a) / 0.01 * 100;
+    }
+
+    function valueAt(id, estate) {
+        switch (state.view) {
+            case "marginal":  return marginalAt(id, estate);
+            case "effective": return effectiveAt(id, estate);
+            case "tax":       return outcome(id, estate).tax;
+            default:          return outcome(id, estate).heirs;
+        }
+    }
+
+    /* ============================================================
+          Kinks and cliffs
+          ------------------------------------------------------------
+          The marginal view is drawn as a step function, so a kink it is
+          not told about becomes a flat line straight through a rate
+          change. Thresholds on the estate itself go in as they are;
+          thresholds on something derived from it are walked back through
+          the calculation by bisection, because every one of those
+          quantities moves in one direction only.
+          ============================================================ */
+
+    function seek(of, target, falling) {
+        var lo = 0, hi = state.xMax * 2;
+        if (falling ? (of(hi) > target || of(lo) < target)
+                    : (of(hi) < target || of(lo) > target)) return null;
+        for (var i = 0; i < 60; i++) {
+            var mid = (lo + hi) / 2;
+            if (falling ? of(mid) > target : of(mid) < target) lo = mid; else hi = mid;
+        }
+        return (lo + hi) / 2;
+    }
+
+    function kinksFor(id) {
+        var y = YEARS[state.year], iht = y.inheritanceTax, cfg = BY_ID[id];
+        var out = [];
+
+        // Thresholds on the estate itself, which need no working out.
+        if (cfg.rnrb) {
+            out.push(iht.taperThreshold);
+            out.push(iht.taperThreshold + 2 * cfg.rnrb * iht.residenceNilRateBand);
+        }
+        if (state.business > 0) {
+            out.push(state.business);
+            var allowance = cfg.nrb * iht.businessRelief.allowance;
+            if (isFinite(allowance) && state.business > allowance) out.push(allowance);
+        }
+        if (state.charity > 0) out.push(state.charity);
+
+        // Where tax starts. Bisected on the unfloored taxable amount, which only
+        // ever rises: the chargeable estate grows and the residence band shrinks.
+        var start = seek(function (v) {
+            var o = outcome(id, v);
+            return o.chargeable - o.gift - o.nrb - o.rnrb;
+        }, 0);
+        if (start !== null) out.push(start);
+
+        // And the charitable cliff, where the baseline finally outgrows ten times
+        // the legacy and the reduced rate is lost.
+        var cliff = charityCliff(id);
+        if (cliff !== null) out.push(cliff.at);
+
+        return out.filter(function (v) { return v > 0 && v < state.xMax; })
+                  .sort(function (a, b) { return a - b; });
+    }
+
+    /* The one genuine discontinuity on the page. Below it the estate clears the
+          10% test and pays 36%; a pound of estate more and it pays 40% on almost
+          the same amount. No line can carry a step, so it is marked instead. */
+    function charityCliff(id) {
+        if (!(state.charity > 0)) return null;
+        var iht = YEARS[state.year].inheritanceTax;
+        var at = seek(function (v) { return outcome(id, v).baseline; },
+                      state.charity * 100 / iht.charityShare);
+        if (at === null || !(at > 0)) return null;
+        var jump = outcome(id, at + 0.01).tax - outcome(id, at - 0.01).tax;
+        if (!(jump > 0.5)) return null;
+        return { at: at, jump: jump };
+    }
+
+    /* ============================================================
+          Geometry and formatting
+          ============================================================ */
+
+    var VB_W = 920, VB_H = 430;
+    var M = { t: 18, r: 26, b: 46, l: 76 };
+    var PLOT_R = VB_W - M.r, Y0 = VB_H - M.b - 10, PLOT_W = PLOT_R - M.l;
+    var yMax = 20;
+
+    function xS(v) { return M.l + (v / state.xMax) * PLOT_W; }
+    function xInv(px) { return ((px - M.l) / PLOT_W) * state.xMax; }
+    function yS(v) { return Y0 - (v / yMax) * (Y0 - M.t); }
+
+    var gbp = UKTax.gbp, gbpShort = UKTax.gbpShort;
+    function pct(r) { return UKTax.pct(r, 2); }
+    function money(v) { return gbp(v); }
+    function isMoneyView() { return state.view === "tax" || state.view === "heirs"; }
+    function fmtValue(v) { return isMoneyView() ? money(v) : pct(v); }
+
+    var MONEY_STEPS = [10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2000000, 5000000];
+    function niceStep(max, candidates) {
+        for (var i = 0; i < candidates.length; i++) if (max / candidates[i] <= 8) return candidates[i];
+        return candidates[candidates.length - 1];
+    }
+    function computeYMax(series) {
+        var mx = 0;
+        series.forEach(function (s) {
+            curvePoints(s).forEach(function (p) { if (p[1] > mx) mx = p[1]; });
+        });
+        if (isMoneyView()) {
+            if (!(mx > 0)) return 100000;
+            var st = niceStep(mx, MONEY_STEPS);
+            return Math.ceil(mx / st) * st;
+        }
+        return Math.max(10, Math.ceil((mx || 10) / 10) * 10);
+    }
+    function yTicks() {
+        var out = [], st = isMoneyView() ? niceStep(yMax, MONEY_STEPS) : 10;
+        for (var v = 0; v <= yMax + 1e-9; v += st) out.push(v);
+        return out;
+    }
+    function xTickStep(max) {
+        var c = [100000, 250000, 500000, 1000000, 2000000];
+        for (var i = 0; i < c.length; i++) if (max / c[i] <= 9) return c[i];
+        return c[c.length - 1];
+    }
+
+    var AXIS_TITLE = { marginal:  "Tax on the next pound of estate",
+                       effective: "Tax as a share of the estate",
+                       tax:       "Inheritance tax due",
+                       heirs:     "What the heirs receive" };
+
+    /* ============================================================
+          Series and curves
+          ============================================================ */
+
+    function activeSeries() {
+        return CONFIGS.filter(function (c) { return state.on[c.id]; });
+    }
+
+    function curvePoints(s) {
+        var kinks = kinksFor(s.id);
+        if (state.view === "marginal") {
+            // A step function: a horizontal run to each kink, then a vertical jump.
+            var r = marginalAt(s.id, 0), out = [[0, r]];
+            kinks.forEach(function (c) {
+                var nr = marginalAt(s.id, c + 0.02);
+                if (Math.abs(nr - r) > 1e-6) { out.push([c, r]); out.push([c, nr]); r = nr; }
+            });
+            out.push([state.xMax, r]);
+            return out;
+        }
+        var pts = [], seen = {};
+        function add(v) {
+            v = Math.max(0, Math.min(state.xMax, Math.round(v * 100) / 100));
+            if (!seen[v]) { seen[v] = 1; pts.push(v); }
+        }
+        add(0); add(state.xMax);
+        // Both sides of every kink, so the cliff is drawn as the vertical step
+        // it actually is rather than a diagonal across it.
+        kinks.forEach(function (c) { add(c); add(c + 0.01); });
+        for (var i = 0; i <= 200; i++) add(state.xMax * i / 200);
+        pts.sort(function (a, b) { return a - b; });
+        return pts.map(function (x) { return [x, valueAt(s.id, x)]; });
+    }
+
+    /* ============================================================
+          SVG helpers and render
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function pathD(pts) {
+        return pts.map(function (p, i) {
+            return (i ? "L" : "M") + xS(p[0]).toFixed(2) + " " + yS(p[1]).toFixed(2);
+        }).join(" ");
+    }
+
+    var svg = document.getElementById("chart");
+    var tip = document.getElementById("tip");
+    var emptyMsg = document.getElementById("empty");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var statsEl = document.getElementById("stats");
+    var tableEl = document.getElementById("table");
+    var current = [], hoverX = null;
+
+    function render() {
+        current = activeSeries();
+        yMax = computeYMax(current);
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        emptyMsg.hidden = current.length > 0;
+
+        var gGrid = el("g"), gAxis = el("g"), gData = el("g"), gHover = el("g", { id: "hover" });
+
+        /* The charitable cliffs, marked rather than drawn: no line carries a step.
+              Estates sharing a nil-rate band share a cliff, so they are collapsed to
+              one rule. Two rules can still land close enough for their labels to
+              collide -- a single and a widowed estate are only one nil-rate band
+              apart -- so a label that would overlap the last one is dropped to a
+              second row rather than printed on top of it. */
+        var marked = {}, cliffXs = [];
+        current.forEach(function (s) {
+            var c = charityCliff(s.id);
+            if (!c || c.at <= 0 || c.at >= state.xMax) return;
+            var k = Math.round(c.at);
+            if (marked[k]) return;
+            marked[k] = 1;
+            cliffXs.push(c.at);
+        });
+        cliffXs.sort(function (a, b) { return a - b; });
+        var lastLabelX = -Infinity, row = 0;
+        cliffXs.forEach(function (at) {
+            var cx = xS(at);
+            gGrid.appendChild(el("line", { x1: cx.toFixed(2), y1: M.t + 20, x2: cx.toFixed(2),
+                y2: Y0, class: "cliff-rule" }));
+            row = (cx - lastLabelX < 92) ? 1 - row : 0;
+            lastLabelX = cx;
+            gGrid.appendChild(el("text", { x: (cx - 6).toFixed(2), y: Y0 - 6 - row * 14,
+                class: "cliff-note", "text-anchor": "end" }, "cliff at " + gbpShort(at)));
+        });
+
+        // The estate being asked about, marked on the axis.
+        if (state.estate > 0 && state.estate < state.xMax) {
+            var px = xS(state.estate);
+            gGrid.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2),
+                y2: Y0, class: "crosshair" }));
+        }
+
+        yTicks().forEach(function (v) {
+            var yy = yS(v);
+            if (v > 0) gGrid.appendChild(el("line", { x1: M.l, y1: yy.toFixed(2), x2: PLOT_R,
+                y2: yy.toFixed(2), class: "grid-line" }));
+            gAxis.appendChild(el("text", { x: M.l - 10, y: (yy + 4).toFixed(2), class: "tick-text",
+                "text-anchor": "end" }, isMoneyView() ? gbpShort(v) : v + "%"));
+        });
+
+        gAxis.appendChild(el("line", { x1: M.l, y1: Y0, x2: PLOT_R, y2: Y0, class: "axis-line" }));
+        var step = xTickStep(state.xMax);
+        for (var v = 0; v <= state.xMax + 1; v += step) {
+            var xx = xS(v);
+            gAxis.appendChild(el("line", { x1: xx.toFixed(2), y1: Y0, x2: xx.toFixed(2),
+                y2: Y0 + 5, class: "axis-line" }));
+            gAxis.appendChild(el("text", { x: xx.toFixed(2), y: Y0 + 20, class: "tick-text",
+                "text-anchor": "middle" }, gbpShort(v)));
+        }
+        gAxis.appendChild(el("text", { x: ((M.l + PLOT_R) / 2).toFixed(2), y: VB_H - 6,
+            class: "axis-title", "text-anchor": "middle" }, "Value of the estate"));
+        gAxis.appendChild(el("text", { x: 14, y: ((M.t + Y0) / 2).toFixed(2), class: "axis-title",
+            "text-anchor": "middle",
+            transform: "rotate(-90 14 " + ((M.t + Y0) / 2).toFixed(2) + ")" }, AXIS_TITLE[state.view]));
+
+        current.forEach(function (s) {
+            var p = el("path", { d: pathD(curvePoints(s)), class: "series-line" });
+            p.style.stroke = "var(" + s.cssVar + ")";
+            if (s.dash) p.setAttribute("stroke-dasharray", s.dash);
+            gData.appendChild(p);
+        });
+
+        svg.appendChild(gGrid);
+        svg.appendChild(gAxis);
+        svg.appendChild(gData);
+        svg.appendChild(gHover);
+        svg.setAttribute("aria-label", AXIS_TITLE[state.view] + " by size of estate, "
+            + YEARS[state.year].label + ".");
+
+        document.getElementById("year-heading").textContent = YEARS[state.year].label;
+        renderStats();
+        renderLegend();
+        renderCaption();
+        renderFigures();
+        renderTaperNote();
+        renderTable();
+        if (hoverX !== null) drawHover(hoverX); else clearHover();
+    }
+
+    function keySvg(cssVar, dash) {
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", 22); s.setAttribute("height", 8);
+        s.setAttribute("viewBox", "0 0 22 8");
+        var l = el("line", { x1: 0, y1: 4, x2: 22, y2: 4, "stroke-width": 2, "stroke-linecap": "round" });
+        l.style.stroke = "var(" + cssVar + ")";
+        if (dash) l.setAttribute("stroke-dasharray", dash);
+        s.appendChild(l);
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        if (!current.length) { legendEl.style.display = "none"; return; }
+        legendEl.style.display = "";
+        var iht = YEARS[state.year].inheritanceTax;
+        current.forEach(function (s) {
+            var bands = s.nrb * iht.nilRateBand + s.rnrb * iht.residenceNilRateBand;
+            var item = div("lg-item");
+            item.appendChild(keySvg(s.cssVar, s.dash));
+            item.appendChild(document.createTextNode(s.label + " · " + gbp(bands) + " of bands"));
+            legendEl.appendChild(item);
+        });
+    }
+
+    /* What the heirs get if the legacy were some other figure. The state is put
+          back before returning, so nothing else on the page can see the change. */
+    function heirsWithLegacy(id, estate, legacy) {
+        var saved = state.charity;
+        state.charity = legacy;
+        var h = outcome(id, estate).heirs;
+        state.charity = saved;
+        return h;
+    }
+
+    /* The legacy at which giving nothing more and giving the full 10% leave the
+          heirs exactly as well off. Below it the reduced rate does not pay for the
+          gift; above it, going all the way to 10% hands the heirs MORE than
+          stopping short. It lands at 4% of the baseline when there is no residence
+          band to complicate it, and is bisected rather than derived so it stays
+          right if a rate moves. */
+    function breakEvenLegacy(id, estate, threshold, heirsAtTen) {
+        if (heirsWithLegacy(id, estate, 0) <= heirsAtTen) return 0;
+        var lo = 0, hi = threshold;
+        for (var i = 0; i < 60; i++) {
+            var mid = (lo + hi) / 2;
+            if (heirsWithLegacy(id, estate, mid) > heirsAtTen) lo = mid; else hi = mid;
+        }
+        return (lo + hi) / 2;
+    }
+
+    /* One tile per estate at the value asked about. The two notes are the two
+          things the chart cannot say: how much residence band the taper has taken,
+          and where the charitable 10% line sits. */
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        if (!current.length || !(state.estate > 0)) return;
+        var iht = YEARS[state.year].inheritanceTax;
+        current.forEach(function (s) {
+            var o = outcome(s.id, state.estate);
+            var g = document.createElement("div");
+            g.className = "stat-group" + (o.bandsLost > 0.005 ? " is-taper" : "");
+            var h = document.createElement("h3");
+            h.appendChild(document.createTextNode(s.label));
+            if (o.bandsLost > 0.005) {
+                var flag = document.createElement("span");
+                flag.className = "stat-flag";
+                flag.textContent = o.rnrb > 0.005 ? "tapering" : "band gone";
+                h.appendChild(flag);
+            }
+            g.appendChild(h);
+            var row = div("stat-row");
+            [["Tax due", money(o.tax)],
+             ["Effective rate", pct(effectiveAt(s.id, state.estate))],
+             ["Rate on the next pound", pct(marginalAt(s.id, state.estate))],
+             ["The heirs receive", money(o.heirs)]].forEach(function (pair) {
+                var cell = document.createElement("div");
+                var lab = document.createElement("span");
+                lab.className = "stat-label";
+                lab.textContent = pair[0];
+                cell.appendChild(lab);
+                cell.appendChild(div("stat-value", pair[1]));
+                row.appendChild(cell);
+            });
+            g.appendChild(row);
+
+            if (o.bandsLost > 0.005) {
+                g.appendChild(div("stat-note", "The taper has taken " + money(o.bandsLost)
+                    + " of residence nil-rate band, which costs " + money(o.bandsLost * o.rate / 100)
+                    + " in tax."));
+            }
+
+            // Where the 10% line sits, and what crossing it is worth. Every figure
+            // here is the estate run again with a different legacy rather than a
+            // formula, so it cannot disagree with the tile above it.
+            if (o.baseline > 0) {
+                if (o.qualifies) {
+                    g.appendChild(div("stat-note", "The " + money(o.gift) + " to charity is at "
+                        + "or above the " + money(o.threshold) + " needed, so the rest is taxed "
+                        + "at " + UKTax.pct(iht.reducedRate, 0) + " rather than "
+                        + UKTax.pct(iht.rate, 0) + "."));
+                } else {
+                    var at10 = heirsWithLegacy(s.id, state.estate, o.threshold);
+                    var better = at10 - o.heirs;
+                    var evens = breakEvenLegacy(s.id, state.estate, o.threshold, at10);
+                    g.appendChild(div("stat-note", UKTax.pct(iht.charityShare, 0)
+                        + " of the baseline amount is " + money(o.threshold) + ". Leaving that "
+                        + "instead of " + money(o.gift) + " would cut the rate to "
+                        + UKTax.pct(iht.reducedRate, 0) + " and leave the heirs "
+                        + (better > 0.005
+                            ? money(better) + " BETTER off — a bigger gift and a bigger "
+                                + "inheritance, both."
+                            : money(-better) + " worse off. The rate cut only pays for the gift "
+                                + "once the legacy passes " + money(evens) + ".")));
+                }
+            }
+            statsEl.appendChild(g);
+        });
+    }
+
+    function renderCaption() {
+        if (!current.length) { captionEl.textContent = ""; return; }
+        var y = YEARS[state.year], iht = y.inheritanceTax, parts = [];
+
+        parts.push("The x-axis is the estate after debts but before any relief or exemption, "
+            + "which is exactly the figure the " + gbp(iht.taperThreshold)
+            + " taper test uses.");
+
+        if (state.business > 0) {
+            var br = iht.businessRelief;
+            parts.push(isFinite(br.allowance)
+                ? "The " + gbp(state.business) + " of agricultural or business property is "
+                    + "100% relieved up to " + gbp(br.allowance) + " for a single estate and "
+                    + gbp(2 * br.allowance) + " for a widowed one, and relieved at "
+                    + UKTax.pct(br.rateAbove, 0) + " above that."
+                : "The " + gbp(state.business) + " of agricultural or business property is "
+                    + "100% relieved with no ceiling, which is the position until 5 April 2026. "
+                    + "Switch to " + YEARS["2026-27"].label + " to see the cap applied.");
+            parts.push("It still counts at full value against the " + gbp(iht.taperThreshold)
+                + " test, so it can take the residence band away from an estate that pays no "
+                + "tax on the business itself.");
+        }
+        if (state.charity > 0) {
+            parts.push("The " + gbp(state.charity) + " charitable legacy is exempt, and buys the "
+                + UKTax.pct(iht.reducedRate, 0) + " rate wherever it is at least "
+                + UKTax.pct(iht.charityShare, 0) + " of the baseline amount. The dashed rule is "
+                + "where the estate outgrows that and the rate goes back to "
+                + UKTax.pct(iht.rate, 0) + ".");
+        }
+        if (state.view === "marginal") {
+            parts.push("This is the rate on the next pound of estate, not on the whole of it.");
+        } else if (state.view === "effective") {
+            parts.push("Effective rate is the tax divided by the estate, so it always sits below "
+                + "the marginal rate.");
+        } else if (state.view === "heirs") {
+            parts.push("What the heirs receive is the estate less the charitable legacy and "
+                + "less the tax.");
+        }
+        captionEl.textContent = parts.join(" ");
+    }
+
+    function renderFigures() {
+        var y = YEARS[state.year], iht = y.inheritanceTax;
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+        var h = document.createElement("h4");
+        h.textContent = "Figures for " + YEARS[state.year].label;
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        row("Rate on death", UKTax.pct(iht.rate, 0) + ", or " + UKTax.pct(iht.reducedRate, 0)
+            + " where at least " + UKTax.pct(iht.charityShare, 0)
+            + " of the baseline amount goes to charity");
+        row("Nil-rate band", gbp(iht.nilRateBand) + ", doubled to " + gbp(2 * iht.nilRateBand)
+            + " where a spouse died without using theirs");
+        row("Residence nil-rate band", gbp(iht.residenceNilRateBand) + ", doubled to "
+            + gbp(2 * iht.residenceNilRateBand) + " — a home passing to direct descendants only");
+        row("Taper threshold", gbp(iht.taperThreshold)
+            + ", above which the residence band goes at £1 for every £2, before reliefs");
+        row("Agricultural and business relief", isFinite(iht.businessRelief.allowance)
+            ? "100% up to " + gbp(iht.businessRelief.allowance) + " per estate, transferable, then "
+                + UKTax.pct(iht.businessRelief.rateAbove, 0) + " — an effective "
+                + UKTax.pct(iht.rate * (100 - iht.businessRelief.rateAbove) / 100, 0) + " rate"
+            : "100% with no ceiling");
+        row("Baseline amount", "the estate less reliefs and less the ordinary nil-rate band — "
+            + "the residence nil-rate band is not deducted");
+        row("Devolution", "none — inheritance tax is the same across the whole UK");
+        host.appendChild(dl);
+    }
+
+    /* The 60% band, found rather than asserted, so the note cannot go stale when
+          a rate moves. Read off the widest residence band on the chart. */
+    function renderTaperNote() {
+        var y = YEARS[state.year], iht = y.inheritanceTax;
+        var rate = iht.rate * 1.5;
+        document.getElementById("taper-rate").textContent = UKTax.pct(rate, 2);
+        var single = iht.taperThreshold + 2 * iht.residenceNilRateBand;
+        var widowed = iht.taperThreshold + 4 * iht.residenceNilRateBand;
+        document.getElementById("taper-range").textContent =
+            "from " + gbp(iht.taperThreshold) + " to " + gbp(single)
+            + " for a single estate, and to " + gbp(widowed) + " for a widowed one";
+    }
+
+    /* Where the estate goes, at the value asked about. Rows that are zero for
+          every estate on screen are dropped rather than printed as a column of
+          dashes. */
+    var FLOWS = [
+        { key: "estate",     label: "Estate before reliefs" },
+        { key: "relieved",   label: "Agricultural and business relief" },
+        { key: "chargeable", label: "Chargeable estate" },
+        { key: "gift",       label: "Charitable legacy" },
+        { key: "nrb",        label: "Nil-rate band" },
+        { key: "rnrb",       label: "Residence nil-rate band" },
+        { key: "bandsLost",  label: "Residence band lost to the taper" }
+    ];
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        if (!current.length) return;
+        var results = current.map(function (s) { return outcome(s.id, state.estate); });
+
+        var cap = document.createElement("caption");
+        cap.textContent = "An estate of " + gbp(state.estate) + ", " + YEARS[state.year].label
+            + ". The first block is what is taken off before the tax is worked out; "
+            + "the second is the tax and what is left.";
+        tableEl.appendChild(cap);
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        var th0 = document.createElement("th");
+        th0.scope = "col";
+        th0.textContent = "";
+        hr.appendChild(th0);
+        current.forEach(function (s) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            var k = document.createElement("span");
+            k.className = "th-key";
+            k.style.background = "var(" + s.cssVar + ")";
+            th.appendChild(k);
+            th.appendChild(document.createTextNode(s.short));
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        function addRow(label, valueFor, cls) {
+            var tr = document.createElement("tr");
+            if (cls) tr.className = cls;
+            var td0 = document.createElement("td");
+            td0.textContent = label;
+            tr.appendChild(td0);
+            results.forEach(function (o, i) {
+                var td = document.createElement("td");
+                td.textContent = valueFor(o, current[i]);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+        function anyNonZero(key) {
+            return results.some(function (o) { return Math.abs(o[key]) > 0.005; });
+        }
+
+        FLOWS.forEach(function (f) {
+            if (f.key === "estate" || anyNonZero(f.key)) {
+                addRow(f.label, function (o) { return money(o[f.key]); });
+            }
+        });
+        addRow("Taxable", function (o) { return money(o.taxable); }, "rule-above");
+        addRow("Rate", function (o) { return UKTax.pct(o.rate, 0); });
+        addRow("Inheritance tax", function (o) { return money(o.tax); }, "total");
+        addRow("The heirs receive", function (o) { return money(o.heirs); }, "rule-above total");
+        addRow("Effective rate", function (o) {
+            return o.estate > 0 ? pct(o.tax / o.estate * 100) : "—"; }, "rule-above");
+        addRow("Rate on the next pound", function (o, s) {
+            return pct(marginalAt(s.id, state.estate)); });
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Hover
+          ============================================================ */
+
+    function clearHover() {
+        var g = svg.querySelector("#hover");
+        if (g) while (g.firstChild) g.removeChild(g.firstChild);
+        tip.classList.remove("on");
+    }
+
+    function drawHover(estate) {
+        var g = svg.querySelector("#hover");
+        if (!g || !current.length) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+        var px = xS(estate);
+        g.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2), y2: Y0,
+            class: "crosshair" }));
+        current.forEach(function (s) {
+            var c = el("circle", { cx: px.toFixed(2), cy: yS(valueAt(s.id, estate)).toFixed(2),
+                r: 4.5, class: "hover-dot" });
+            c.style.fill = "var(" + s.cssVar + ")";
+            g.appendChild(c);
+        });
+
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(div("tip-head", gbp(estate) + " estate"));
+        current.forEach(function (s) {
+            var o = outcome(s.id, estate);
+            var row = div("tip-row");
+            var key = div("tip-key");
+            key.style.background = "var(" + s.cssVar + ")";
+            if (s.dash) key.style.background =
+                "repeating-linear-gradient(90deg, var(" + s.cssVar + ") 0 5px, transparent 5px 8px)";
+            row.appendChild(key);
+            row.appendChild(div("tip-name", s.short));
+            row.appendChild(div("tip-val", fmtValue(valueAt(s.id, estate))));
+            tip.appendChild(row);
+            tip.appendChild(div("tip-band", money(o.tax) + " tax · " + money(o.heirs) + " to the heirs"
+                + (o.bandsLost > 0.005 ? " · " + money(o.bandsLost) + " of band tapered away" : "")));
+        });
+
+        var rect = svg.getBoundingClientRect();
+        var scale = rect.width / VB_W;
+        var left = px * scale + 16;
+        tip.classList.add("on");
+        var tw = tip.offsetWidth;
+        if (left + tw > rect.width - 4) left = px * scale - tw - 16;
+        tip.style.left = Math.max(4, left) + "px";
+        tip.style.top = Math.max(4, Math.min(rect.height - tip.offsetHeight - 4,
+                                             rect.height * 0.16)) + "px";
+    }
+
+    function estateFromEvent(e) {
+        var rect = svg.getBoundingClientRect();
+        var px = ((e.clientX - rect.left) / rect.width) * VB_W;
+        if (px < M.l - 2 || px > PLOT_R + 2) return null;
+        var grain = state.xMax / 200;
+        var v = Math.round(xInv(px) / grain) * grain;
+        return Math.max(0, Math.min(state.xMax, v));
+    }
+
+    svg.addEventListener("pointermove", function (e) {
+        if (!current.length) return;
+        var v = estateFromEvent(e);
+        if (v === null) { hoverX = null; clearHover(); return; }
+        hoverX = v; drawHover(v);
+    });
+    svg.addEventListener("pointerleave", function () { hoverX = null; clearHover(); });
+    svg.addEventListener("keydown", function (e) {
+        if (!current.length) return;
+        var stepK = e.shiftKey ? state.xMax / 20 : state.xMax / 100;
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            var grain = state.xMax / 200;
+            var base = hoverX === null ? state.xMax / 2 : hoverX;
+            hoverX = Math.max(0, Math.min(state.xMax,
+                Math.round((base + (e.key === "ArrowRight" ? stepK : -stepK)) / grain) * grain));
+            drawHover(hoverX);
+            e.preventDefault();
+        } else if (e.key === "Escape") { hoverX = null; clearHover(); }
+    });
+    svg.addEventListener("blur", function () { hoverX = null; clearHover(); });
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    function makeChip(label, checked, tickColor, onToggle) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", checked ? "true" : "false");
+        if (tickColor) b.style.setProperty("--tick-col", tickColor);
+        var t = document.createElement("span");
+        t.className = "tick";
+        t.setAttribute("aria-hidden", "true");
+        b.appendChild(t);
+        b.appendChild(document.createTextNode(label));
+        b.addEventListener("click", function () {
+            var next = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", next ? "true" : "false");
+            onToggle(next);
+            hoverX = null;
+            render();
+        });
+        return b;
+    }
+
+    var chipHost = document.getElementById("config-chips");
+    CONFIGS.forEach(function (c) {
+        chipHost.appendChild(makeChip(c.short, state.on[c.id],
+            "var(" + c.cssVar + ")", function (on) { state.on[c.id] = on; }));
+    });
+
+    // One reader for all three money fields, so they cannot drift apart.
+    function bindAmount(id, key) {
+        var input = document.getElementById(id);
+        function read() {
+            var raw = input.value.replace(/[£,\s]/g, "");
+            var n = Number(raw);
+            state[key] = (raw !== "" && isFinite(n) && n >= 0) ? n : 0;
+        }
+        input.addEventListener("input", function () { read(); hoverX = null; render(); });
+        input.addEventListener("blur", function () {
+            input.value = state[key].toLocaleString("en-GB");
+        });
+        read();
+    }
+    bindAmount("estate", "estate");
+    bindAmount("business", "business");
+    bindAmount("charity", "charity");
+
+    function bind(id, fn) {
+        document.getElementById(id).addEventListener("change", function (e) {
+            fn(e.target.value); hoverX = null; render();
+        });
+    }
+    bind("year-sel",  function (v) { state.year = v; });
+    bind("view-sel",  function (v) { state.view = v; });
+    bind("range-sel", function (v) { state.xMax = Number(v); });
+
+    (function buildYearOptions() {
+        var sel = document.getElementById("year-sel");
+        YEAR_ORDER.forEach(function (id) {
+            var o = document.createElement("option");
+            o.value = id;
+            o.textContent = YEARS[id].label;
+            if (id === state.year) o.selected = true;
+            sel.appendChild(o);
+        });
+    })();
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          Every figure pinned below was worked out by hand from the
+          published rules before this file was written, so it tests the
+          code rather than restating it. The structural checks assert what
+          the notes claim: that the taper makes a 60% band out of a 40%
+          tax, that the £2,000,000 test ignores reliefs and exemptions,
+          that the two years differ only where there is agricultural or
+          business property, and that crossing the charitable 10% line can
+          leave the heirs with more.
+          ============================================================ */
+
+    // [estate, tax] for 2026/27 with no business property and no legacy.
+    var PINNED = {
+        singleHome: [[400000, 0], [1000000, 200000], [2000000, 600000],
+                     [2200000, 720000], [2350000, 810000], [3000000, 1070000]],
+        widowedHome: [[1000000, 0], [2000000, 400000], [2700000, 820000], [3000000, 940000]],
+        single: [[325000, 0], [2000000, 670000]],
+        widowed: [[650000, 0], [2000000, 540000]]
+    };
+
+    // [config, estate, marginal rate]. The 60% figures are the taper: 40% on the
+    // pound itself and 40% on the 50p of band it takes away.
+    var PINNED_MARGINAL = [
+        ["singleHome",  1000000, 40], ["singleHome",  2100000, 60], ["singleHome",  2500000, 40],
+        ["widowedHome", 1500000, 40], ["widowedHome", 2400000, 60], ["widowedHome", 3000000, 40],
+        ["single",      2100000, 40], ["widowed",     2100000, 40],
+        ["singleHome",   300000,  0]
+    ];
+
+    function runSelfChecks() {
+        var harness = UKTax.checker();
+        var check = harness.check, near = harness.near;
+        var saved = { year: state.year, business: state.business, charity: state.charity,
+                      xMax: state.xMax };
+        function setUp(year, business, charity) {
+            state.year = year; state.business = business; state.charity = charity;
+        }
+
+        /* -- the pinned figures ------------------------------------------- */
+        setUp("2026-27", 0, 0);
+        Object.keys(PINNED).forEach(function (id) {
+            PINNED[id].forEach(function (t) {
+                var got = outcome(id, t[0]).tax;
+                check("pinned " + id + " at " + t[0] + " is " + t[1],
+                      near(got, t[1], 0.01), got.toFixed(2) + " vs " + t[1]);
+            });
+        });
+        PINNED_MARGINAL.forEach(function (t) {
+            var got = marginalAt(t[0], t[1]);
+            check("marginal " + t[0] + " at " + t[1] + " is " + t[2] + "%",
+                  near(got, t[2], 0.0001), got.toFixed(4));
+        });
+
+        /* -- the bands are what the legend says they are ------------------- */
+        YEAR_ORDER.forEach(function (yid) {
+            var iht = YEARS[yid].inheritanceTax;
+            setUp(yid, 0, 0);
+            CONFIGS.forEach(function (c) {
+                var bands = c.nrb * iht.nilRateBand + c.rnrb * iht.residenceNilRateBand;
+                check(yid + " " + c.id + " pays nothing at " + bands,
+                      near(outcome(c.id, bands).tax, 0, 1e-9));
+                check(yid + " " + c.id + " pays tax one pound above " + bands,
+                      outcome(c.id, bands + 1).tax > 0);
+            });
+            // The four estates are nested: more bands can never mean more tax.
+            for (var E = 0; E <= 4000000; E += 9973) {
+                check(yid + " a residence band never costs more at " + E,
+                      outcome("singleHome", E).tax <= outcome("single", E).tax + 1e-9);
+                check(yid + " a transferred band never costs more at " + E,
+                      outcome("widowed", E).tax <= outcome("single", E).tax + 1e-9);
+                check(yid + " both bands never cost more at " + E,
+                      outcome("widowedHome", E).tax <= outcome("widowed", E).tax + 1e-9);
+            }
+        });
+
+        /* -- the taper: where it starts, where it ends, what it costs ------ */
+        YEAR_ORDER.forEach(function (yid) {
+            var iht = YEARS[yid].inheritanceTax;
+            setUp(yid, 0, 0);
+            CONFIGS.forEach(function (c) {
+                var full = c.rnrb * iht.residenceNilRateBand;
+                var end = iht.taperThreshold + 2 * full;
+                check(yid + " " + c.id + " has its whole residence band at the threshold",
+                      near(outcome(c.id, iht.taperThreshold).rnrb, full, 1e-9));
+                check(yid + " " + c.id + " has no residence band left at " + end,
+                      near(outcome(c.id, end).rnrb, 0, 1e-9));
+                if (full > 0) {
+                    var mid = (iht.taperThreshold + end) / 2;
+                    check(yid + " " + c.id + " is taxed at 1.5x the rate inside the taper",
+                          near(marginalAt(c.id, mid), iht.rate * 1.5, 0.0001),
+                          marginalAt(c.id, mid).toFixed(4));
+                    check(yid + " " + c.id + " halves its residence band halfway through",
+                          near(outcome(c.id, mid).rnrb, full / 2, 1e-6));
+                    // Above the taper the marginal rate FALLS back. Nothing else on
+                    // this site does that, so assert it rather than assume it.
+                    check(yid + " " + c.id + " drops back to the main rate above the taper",
+                          near(marginalAt(c.id, end + 10000), iht.rate, 0.0001));
+                } else {
+                    check(yid + " " + c.id + " has no taper to run",
+                          near(marginalAt(c.id, iht.taperThreshold + 100000), iht.rate, 0.0001));
+                }
+            });
+        });
+
+        /* -- the £2,000,000 test ignores reliefs and exemptions ------------
+              A fully relieved farm and a charitable legacy both leave the
+              residence band exactly where the bare estate would have put it. */
+        [[1500000, 0], [0, 400000], [1500000, 400000]].forEach(function (t) {
+            YEAR_ORDER.forEach(function (yid) {
+                CONFIGS.forEach(function (c) {
+                    [2000000, 2300000, 2600000, 3500000].forEach(function (E) {
+                        setUp(yid, 0, 0);
+                        var bare = outcome(c.id, E).rnrb;
+                        setUp(yid, t[0], t[1]);
+                        var loaded = outcome(c.id, E).rnrb;
+                        check(yid + " " + c.id + " taper at " + E + " ignores relief and legacy "
+                              + "(" + t[0] + "/" + t[1] + ")", near(bare, loaded, 1e-9),
+                              bare + " vs " + loaded);
+                    });
+                });
+            });
+        });
+
+        /* -- the two years differ ONLY on agricultural and business property */
+        [0, 250000, 900000].forEach(function (C) {
+            CONFIGS.forEach(function (c) {
+                for (var E = 0; E <= 8000000; E += 61237) {
+                    setUp("2025-26", 0, C);
+                    var a = outcome(c.id, E).tax;
+                    setUp("2026-27", 0, C);
+                    var b = outcome(c.id, E).tax;
+                    check("the two years agree without a business at " + E + " " + c.id
+                          + " (legacy " + C + ")", near(a, b, 1e-9), a + " vs " + b);
+                }
+            });
+        });
+        // ...and that they must NOT agree once there is one, or the year control
+        // does nothing.
+        setUp("2025-26", 4000000, 0);
+        var y25 = outcome("single", 6000000).tax;
+        setUp("2026-27", 4000000, 0);
+        var y26 = outcome("single", 6000000).tax;
+        check("2026/27 charges more on a £4m business than 2025/26",
+              y26 > y25 + 1, y25.toFixed(2) + " vs " + y26.toFixed(2));
+        check("2025/26 relieves a £4m business in full", near(y25, 670000, 0.01), y25.toFixed(2));
+        check("2026/27 taxes the £1.5m above the cap at half relief",
+              near(y26, 970000, 0.01), y26.toFixed(2));
+
+        /* -- relief above the cap is an effective 20% ---------------------- */
+        (function () {
+            var iht = YEARS["2026-27"].inheritanceTax;
+            var expect = iht.rate * (100 - iht.businessRelief.rateAbove) / 100;
+            setUp("2026-27", 20000000, 0);
+            [4000000, 6000000, 9000000].forEach(function (E) {
+                check("an all-business estate is taxed at " + expect + "% at " + E,
+                      near(marginalAt("single", E), expect, 0.0001),
+                      marginalAt("single", E).toFixed(4));
+            });
+            setUp("2025-26", 20000000, 0);
+            [4000000, 9000000].forEach(function (E) {
+                check("an all-business estate paid nothing at " + E + " in 2025/26",
+                      near(outcome("single", E).tax, 0, 1e-9));
+            });
+        })();
+
+        /* -- the charitable cliff ------------------------------------------
+              At £2,000,000 with a single estate and a home, the baseline is
+              £1,675,000 and the 10% line is £167,500. A legacy of £167,499 is
+              taxed at 40% and one of £167,500 at 36%, so the pound that crosses
+              the line hands the other beneficiaries £53,299 more. Worked out by
+              hand before the code was written. */
+        setUp("2026-27", 0, 167499);
+        var under = outcome("singleHome", 2000000);
+        setUp("2026-27", 0, 167500);
+        var over = outcome("singleHome", 2000000);
+        check("the baseline at £2m is £1,675,000", near(under.baseline, 1675000, 0.01),
+              under.baseline.toFixed(2));
+        check("the 10% line at £2m is £167,500", near(under.threshold, 167500, 0.01),
+              under.threshold.toFixed(2));
+        check("a legacy of £167,499 misses the reduced rate", !under.qualifies);
+        check("a legacy of £167,500 gets it", over.qualifies);
+        check("tax at £167,499 is £533,000.40", near(under.tax, 533000.40, 0.01), under.tax.toFixed(2));
+        check("tax at £167,500 is £479,700", near(over.tax, 479700, 0.01), over.tax.toFixed(2));
+        check("the extra pound to charity leaves the heirs £53,299.40 better off",
+              near(over.heirs - under.heirs, 53299.40, 0.01),
+              (over.heirs - under.heirs).toFixed(2));
+
+        /* -- and the cliff is found where it actually is ------------------- */
+        setUp("2026-27", 0, 200000);
+        state.xMax = 5000000;
+        [["singleHome", 2325000, 71500], ["widowedHome", 2650000, 71000]].forEach(function (t) {
+            var c = charityCliff(t[0]);
+            check("a cliff exists for " + t[0], c !== null);
+            if (c) {
+                check("the cliff for " + t[0] + " is at " + t[1], near(c.at, t[1], 1),
+                      c.at.toFixed(2));
+                check("the cliff for " + t[0] + " jumps " + t[2], near(c.jump, t[2], 1),
+                      c.jump.toFixed(2));
+            }
+        });
+        setUp("2026-27", 0, 0);
+        CONFIGS.forEach(function (c) {
+            check("no cliff without a legacy for " + c.id, charityCliff(c.id) === null);
+        });
+
+        /* -- the charitable break-even sits at 4% of the baseline ----------
+              Worked out by hand: giving G at 40% leaves the heirs E - 0.6G - 0.4B
+              + 0.4R, and giving 10% at 36% leaves them E - 0.424B + 0.36R. Setting
+              those equal gives G = 0.04B + R/15. With no residence band that is
+              exactly 4% of the baseline, which is the figure the textbooks quote. */
+        setUp("2026-27", 0, 0);
+        [["single", 2200000], ["widowed", 2200000], ["single", 900000]].forEach(function (t) {
+            var o = outcome(t[0], t[1]);
+            var at10 = heirsWithLegacy(t[0], t[1], o.threshold);
+            var evens = breakEvenLegacy(t[0], t[1], o.threshold, at10);
+            check("the break-even legacy is 4% of the baseline for " + t[0] + " at " + t[1],
+                  near(evens, o.baseline * 0.04, 1), evens.toFixed(2)
+                  + " vs " + (o.baseline * 0.04).toFixed(2));
+        });
+        [["singleHome", 2200000], ["widowedHome", 2200000]].forEach(function (t) {
+            var o = outcome(t[0], t[1]);
+            var at10 = heirsWithLegacy(t[0], t[1], o.threshold);
+            var evens = breakEvenLegacy(t[0], t[1], o.threshold, at10);
+            check("a surviving residence band raises the break-even for " + t[0],
+                  near(evens, o.baseline * 0.04 + o.rnrb / 15, 1), evens.toFixed(2));
+        });
+        // And that it really is a break-even: a pound either side of it flips
+        // which of the two legacies leaves the heirs better off.
+        (function () {
+            var o = outcome("single", 2200000);
+            var at10 = heirsWithLegacy("single", 2200000, o.threshold);
+            var evens = breakEvenLegacy("single", 2200000, o.threshold, at10);
+            check("below the break-even, giving 10% costs the heirs",
+                  heirsWithLegacy("single", 2200000, evens - 1000) > at10);
+            check("above the break-even, giving 10% pays the heirs",
+                  heirsWithLegacy("single", 2200000, evens + 1000) < at10);
+        })();
+
+        /* -- the baseline leaves the residence band OUT --------------------
+              The bar is higher than the taxable figure suggests, which is the
+              trap the notes describe. Asserted as an inequality, not restated
+              as the same arithmetic. */
+        setUp("2026-27", 0, 0);
+        [2000000, 2100000].forEach(function (E) {
+            var o = outcome("singleHome", E);
+            check("the baseline exceeds the taxable amount at " + E, o.baseline > o.taxable,
+                  o.baseline + " vs " + o.taxable);
+            check("the baseline is the residence band above the taxable amount at " + E,
+                  near(o.baseline - o.taxable, o.rnrb, 1e-6));
+        });
+
+        /* -- nothing goes backwards, negative, or above the estate --------- */
+        YEAR_ORDER.forEach(function (yid) {
+            [0, 1500000, 4000000].forEach(function (B) {
+                [0, 200000].forEach(function (C) {
+                    setUp(yid, B, C);
+                    CONFIGS.forEach(function (c) {
+                        var prev = -1;
+                        for (var E = 0; E <= 9000000; E += 8117) {
+                            var o = outcome(c.id, E);
+                            check("tax rises with the estate at " + E + " " + c.id + " " + yid,
+                                  o.tax >= prev - 1e-9, o.tax.toFixed(2));
+                            check("no negative tax at " + E + " " + c.id, o.tax >= -1e-9);
+                            check("tax never exceeds the estate at " + E + " " + c.id,
+                                  o.tax <= o.estate + 1e-9);
+                            check("the estate adds up at " + E + " " + c.id,
+                                  near(o.heirs + o.gift + o.tax, o.estate, 1e-6));
+                            prev = o.tax;
+                        }
+                    });
+                });
+            });
+        });
+
+        /* -- effective rate never exceeds the marginal rate ---------------- */
+        setUp("2026-27", 0, 0);
+        CONFIGS.forEach(function (c) {
+            for (var E = 100000; E <= 6000000; E += 97331) {
+                check("effective is at or below marginal at " + E + " " + c.id,
+                      effectiveAt(c.id, E) <= marginalAt(c.id, E) + 1e-6,
+                      effectiveAt(c.id, E).toFixed(3) + " vs " + marginalAt(c.id, E).toFixed(3));
+            }
+        });
+
+        /* -- the chart's steps are in the right places ----------------------
+              The marginal view turns only at the kinks kinksFor() reports, so a
+              kink it misses is drawn as a flat line straight through a rate
+              change and looks entirely plausible. Between two consecutive kinks
+              the rate must be flat, and this asserts it. ------------------- */
+        [3000000, 10000000].forEach(function (xMax) {
+            YEAR_ORDER.forEach(function (yid) {
+                [[0, 0], [1500000, 0], [4000000, 0], [0, 200000], [3000000, 200000]]
+                        .forEach(function (t) {
+                    setUp(yid, t[0], t[1]);
+                    state.xMax = xMax;
+                    CONFIGS.forEach(function (c) {
+                        var edges = [0].concat(kinksFor(c.id)).concat([xMax]);
+                        for (var i = 0; i + 1 < edges.length; i++) {
+                            var a = edges[i], b = edges[i + 1];
+                            if (b - a < 1) continue;
+                            var ref = marginalAt(c.id, a + (b - a) * 0.5);
+                            [0.05, 0.25, 0.75, 0.95].forEach(function (f) {
+                                var r = marginalAt(c.id, a + (b - a) * f);
+                                check("the rate is flat between kinks for " + c.id + " from "
+                                      + Math.round(a) + " to " + Math.round(b) + " (" + yid + "/"
+                                      + t[0] + "/" + t[1] + "/" + xMax + ")",
+                                      near(r, ref, 0.0002), r.toFixed(6) + " vs " + ref.toFixed(6));
+                            });
+                        }
+                    });
+                });
+            });
+        });
+
+        state.year = saved.year; state.business = saved.business;
+        state.charity = saved.charity; state.xMax = saved.xMax;
+
+        harness.report("selfcheck", "across " + CONFIGS.length + " estates and "
+            + YEAR_ORDER.length + " tax years", "__ihtSelfChecks");
+
+        // If the calendar has moved past the years covered, say so rather than
+        // quietly showing stale rates.
+        var missing = !YEARS[UKTax.currentTaxYearId()] ? UKTax.currentTaxYearId() : null;
+        if (missing) {
+            var out = document.getElementById("selfcheck");
+            var warn = document.createElement("p");
+            warn.className = "selfcheck bad";
+            warn.textContent = "⚠ The " + missing.replace("-", "/")
+                + " tax year has begun but is not covered here — check the rates.";
+            out.parentNode.insertBefore(warn, out.nextSibling);
+        }
+    }
+
+    render();
+    runSelfChecks();
+    window.addEventListener("resize", function () { if (hoverX !== null) drawHover(hoverX); });
+})();
+</script>
+</body>
+</html>
