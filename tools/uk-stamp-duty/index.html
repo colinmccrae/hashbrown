@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UK Stamp Duty &mdash; Hash Brown Engineering</title>
+    <meta name="description" content="Stamp duty on property across all three UK regimes — SDLT in England and Northern Ireland, LBTT in Scotland and LTT in Wales — for every buyer type, with the marginal and effective rates and the cliff edges.">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/style.css">
+    <style>
+            *, *::before, *::after { box-sizing: border-box; }
+
+            /* The chrome reads from the site's tokens in /assets/style.css, so this
+                  page follows the site into dark mode automatically. Only the categorical
+                  series colours are the tool's own -- six hues that have to stay separable
+                  for colourblind readers, which the site's single ochre accent cannot
+                  supply. Their contrast was re-checked against this site's surfaces. */
+            .viz-root {
+                --surface-1:      var(--surface);
+                --text-primary:   var(--ink);
+                --text-secondary: var(--ink-muted);
+                --text-muted:     var(--ink-faint);
+                --grid:           var(--rule);
+                --border:         var(--rule);
+                --chip-hover:     var(--accent-soft);
+                --tip-bg:         var(--surface);
+
+                /* One step stronger than a gridline so the baseline reads as an axis. */
+                --axis:           #d5cec3;
+                --tip-shadow:     0 6px 24px rgba(27, 25, 23, 0.13), 0 1px 3px rgba(27, 25, 23, 0.08);
+
+                --series-1:       #2a78d6;  /* England & Northern Ireland */
+                --series-2:       #eb6834;  /* Scotland */
+                --series-3:       #1baf7a;  /* Wales */
+
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .viz-root {
+                    --axis:         #3c382f;
+                    --tip-shadow:   0 6px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+                    --series-1:     #3987e5;
+                    --series-2:     #d95926;
+                    --series-3:     #199e70;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+            }
+
+
+            h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+            .sub { color: var(--text-secondary); margin: 0 0 22px; max-width: 68ch; }
+
+            /* ---- controls: one row, above the chart ---- */
+            .controls {
+                display: flex; flex-wrap: wrap; gap: 18px 22px;
+                align-items: flex-end; margin-bottom: 16px;
+            }
+            .ctl-label {
+                display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--text-muted); margin-bottom: 7px;
+            }
+            /* Wraps rather than running off the side of a narrow screen. */
+            /* min-width: 0 all the way down. A flex item defaults to min-width:auto
+                  and refuses to shrink below its content, so a long option like
+                  "Additional property — second home or buy-to-let" pushed the whole
+                  page sideways at 320px. The select needs it, its wrapper needs it,
+                  and so does this row, which is itself a flex item of .controls. */
+            .ctl-pair {
+                display: flex; flex-wrap: wrap; gap: 18px 22px; align-items: flex-end;
+                min-width: 0; max-width: 100%;
+            }
+            .viz-root .controls > div,
+            .ctl-pair > div { min-width: 0; max-width: 100%; }
+            .viz-root input.price {
+                width: 9rem; font: inherit; font-size: 13px; color: var(--ink);
+                background: var(--surface); border: 1px solid var(--rule);
+                border-radius: 8px; padding: 6px 10px;
+            }
+            .viz-root input.price:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            /* The cheapest regime at the entered price, called out in its tile. */
+            .stat-group.is-cheapest { border-color: var(--axis); }
+            .stat-flag {
+                display: inline-block; font-size: 10px; letter-spacing: 0.04em;
+                text-transform: uppercase; color: var(--accent); margin-left: 6px;
+            }
+            .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip {
+                display: inline-flex; align-items: center; gap: 7px;
+                font: inherit; font-size: 13px; color: var(--text-secondary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 999px; padding: 6px 13px 6px 10px; cursor: pointer;
+                transition: background 120ms, border-color 120ms, color 120ms;
+            }
+            .chip:hover:not(:disabled) { background: var(--chip-hover); }
+            .chip:disabled { opacity: 0.42; cursor: default; }
+            .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .chip[aria-checked="true"] { color: var(--text-primary); border-color: var(--axis); font-weight: 500; }
+            .chip .tick {
+                width: 15px; height: 15px; flex: none; border-radius: 4px;
+                border: 1.5px solid var(--axis); position: relative;
+            }
+            .chip[aria-checked="true"] .tick { border-color: transparent; background: var(--tick-col, var(--text-primary)); }
+            .chip[aria-checked="true"] .tick::after {
+                content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+                border: solid var(--surface-1); border-width: 0 2px 2px 0; transform: rotate(42deg);
+            }
+            select {
+                font: inherit; font-size: 13px; color: var(--text-primary);
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 8px; padding: 6px 10px; cursor: pointer;
+            }
+            select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+            /* ---- chart card ---- */
+            .card {
+                background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px 16px 12px; position: relative;
+            }
+            .plot-wrap { position: relative; }
+            svg.chart { display: block; width: 100%; height: auto; touch-action: none; }
+            svg.chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+            .grid-line { stroke: var(--grid); stroke-width: 1; }
+            .axis-line { stroke: var(--axis); stroke-width: 1; }
+            .tick-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+            .axis-title { fill: var(--text-secondary); font-size: 12px; }
+            .band-wash { fill: var(--text-muted); opacity: 0.075; }
+            .band-note { fill: var(--text-muted); font-size: 10.5px; }
+            .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+            .cliff-rule { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 3 3; }
+            .cliff-note { fill: var(--text-secondary); font-size: 10.5px; font-weight: 600; }
+            .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+            .hover-dot { stroke: var(--surface-1); stroke-width: 2; }
+
+            .empty[hidden] { display: none; }
+
+            .empty {
+                position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: var(--text-muted); font-size: 14px; text-align: center; padding: 24px;
+            }
+
+            /* ---- tooltip ---- */
+            .tip {
+                position: absolute; pointer-events: none; z-index: 5;
+                background: var(--tip-bg); border: 1px solid var(--border); border-radius: 10px;
+                box-shadow: var(--tip-shadow); padding: 9px 11px; min-width: 210px; max-width: 290px;
+                opacity: 0; transition: opacity 90ms;
+            }
+            .tip.on { opacity: 1; }
+            .tip-head {
+                font-size: 12px; font-weight: 600; color: var(--text-primary);
+                padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-row { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; }
+            .tip-row:first-of-type { margin-top: 0; }
+            .tip-key { flex: none; width: 14px; height: 2px; border-radius: 1px; align-self: center; }
+            .tip-name { flex: 1; font-size: 12px; color: var(--text-secondary); }
+            .tip-val {
+                flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+                font-variant-numeric: tabular-nums;
+            }
+            .tip-band { font-size: 10.5px; color: var(--text-muted); margin: 1px 0 0 22px; }
+
+            /* ---- legend ---- */
+            .legend {
+                display: flex; flex-wrap: wrap; gap: 8px 20px;
+                padding: 12px 4px 2px; margin-top: 4px; border-top: 1px solid var(--border);
+            }
+            .lg-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+            .lg-item svg { flex: none; display: block; }
+
+            .caption { color: var(--text-muted); font-size: 12px; margin: 10px 2px 0; }
+
+            /* ---- cliff stat tiles ---- */
+            .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+            .stats:empty { display: none; }
+            .stat-group {
+                flex: 1 1 320px; background: var(--surface-1); border: 1px solid var(--border);
+                border-radius: 12px; padding: 13px 16px 15px;
+            }
+            .stat-group h3 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 10px;
+            }
+            .stat-row { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+            .stat-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 1px; }
+            .stat-value { font-size: 21px; font-weight: 600; color: var(--text-primary); line-height: 1.15; }
+            .stat-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+            .cc-group { display: flex; gap: 10px; align-items: center; }
+            .sub-ctl { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-muted); }
+            .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            /* ---- table ---- */
+            table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+            caption { text-align: left; color: var(--text-secondary); font-size: 12.5px; padding: 0 0 10px; }
+            th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+            th:first-child, td:first-child { text-align: left; }
+            thead th { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); vertical-align: bottom; }
+            thead th .th-qual { display: block; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+            tbody td { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+            tbody td:first-child { color: var(--text-secondary); }
+            .th-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; vertical-align: middle; margin-right: 6px; }
+            .tbl-scroll { overflow-x: auto; }
+
+            details.notes { margin-top: 24px; }
+            details.notes > summary {
+                cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+                padding: 6px 0; list-style: revert;
+            }
+            details.notes ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; }
+            .figures { margin: 10px 0 4px; }
+            .figures h4 {
+                font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+                color: var(--text-muted); margin: 0 0 8px;
+            }
+            .figures dl {
+                display: grid; grid-template-columns: minmax(11rem, auto) 1fr; gap: 4px 16px;
+                margin: 0 0 12px; font-size: 12.5px;
+            }
+            .figures dt { color: var(--text-secondary); }
+            .figures dd { margin: 0; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+            .selfcheck { font-size: 12px; margin: 12px 0 0; font-variant-numeric: tabular-nums; }
+            .selfcheck.ok { color: #0ca30c; }
+            .selfcheck.bad { color: #d03b3b; font-weight: 600; }
+            details.notes li { margin-bottom: 6px; }
+
+            section.block { margin-top: 26px; }
+            h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+
+            /* ---- overrides for the shared stylesheet -------------------------------
+                  /assets/style.css styles bare `input, select, button` for simple tool
+                  forms: full width, ochre filled buttons, uppercase block labels. This
+                  tool's controls are chips and inline selects, so those rules are undone
+                  inside .viz-root only. ---------------------------------------------- */
+            .viz-root select {
+                width: auto;
+                /* A select sizes itself to its longest option and will not shrink
+                      below it, so "Additional property — second home or buy-to-let"
+                      pushes the whole page sideways on a narrow screen without this. */
+                max-width: 100%;
+                font-size: 13px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid var(--rule);
+                background: var(--surface);
+                color: var(--ink);
+            }
+            .viz-root .sub-ctl select { padding: 6px 6px 6px 8px; }
+
+            .viz-root button.chip {
+                width: auto;
+                background: var(--surface);
+                border: 1px solid var(--rule);
+                color: var(--ink-muted);
+                font-weight: 400;
+                font-size: 13px;
+                border-radius: 999px;
+                padding: 6px 13px 6px 10px;
+            }
+            .viz-root button.chip:hover:not(:disabled) { background: var(--accent-soft); filter: none; }
+            .viz-root button.chip[aria-checked="true"] { color: var(--ink); font-weight: 500; }
+
+            /* The shared sheet makes every <label> an uppercase block; the paired
+                  childcare selects need theirs inline and in sentence case. */
+            .viz-root label.sub-ctl {
+                display: flex;
+                text-transform: none;
+                letter-spacing: normal;
+                font-weight: 400;
+                font-size: 11.5px;
+                color: var(--ink-faint);
+                margin-block-end: 0;
+            }
+
+            .viz-root h2 {
+                font-family: var(--font-serif);
+                font-size: 1.15rem;
+                font-weight: 400;
+                color: var(--ink);
+                margin: 0 0 4px;
+            }
+
+            /* The chart needs more room than the site's 44rem reading measure, so this
+                  page opts out for the tool while prose stays narrow. */
+            .page-wide { max-width: 68rem; }
+            .page-wide .tool-header,
+            .page-wide .tool-nav { max-width: var(--measure); }
+            .page-wide main { margin-block-start: clamp(2rem, 5vw, 3rem); }
+            .viz-root details.notes { max-width: var(--measure); }
+
+        .disclaimer {
+            max-width: var(--measure);
+            margin-block-start: 2.5rem;
+            font-size: 0.85rem;
+            color: var(--ink-faint);
+            text-wrap: pretty;
+        }
+    </style>
+</head>
+<body>
+<div class="page page-wide">
+
+    <p class="tool-nav"><a href="/">&larr; Hash Brown Engineering</a></p>
+
+    <header class="tool-header">
+        <h1>Stamp duty on property &mdash; <span id="year-heading">2026/27</span></h1>
+        <p class="lede">Three taxes, three sets of bands, and three different answers to the
+            same question. SDLT in England and Northern Ireland, LBTT in Scotland and LTT in
+            Wales, for every kind of buyer &mdash; with the cliff edges that make one extra
+            pound of asking price cost thousands.</p>
+    </header>
+
+    <main>
+        <div class="viz-root">
+            <div class="controls">
+                    <div>
+                        <span class="ctl-label" id="lbl-regime">Regime</span>
+                        <div class="chips" role="group" aria-labelledby="lbl-regime" id="regime-chips"></div>
+                    </div>
+                    <div class="ctl-pair">
+                    <div>
+                        <label class="ctl-label" for="price">Price</label>
+                        <input id="price" class="price" type="text" inputmode="numeric"
+                               value="300,000" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="year-sel">Tax year</label>
+                        <select id="year-sel"></select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="type-sel">Property</label>
+                        <select id="type-sel">
+                            <option value="residential" selected>Residential</option>
+                            <option value="nonres">Non-residential or mixed use</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="buyer-sel">Buyer</label>
+                        <select id="buyer-sel">
+                            <option value="standard" selected>Moving home &mdash; one property</option>
+                            <option value="ftb">First-time buyer</option>
+                            <option value="additional">Additional property &mdash; second home or buy-to-let</option>
+                            <option value="company">Company or other non-natural person</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="resident-sel">Buyer residence</label>
+                        <select id="resident-sel">
+                            <option value="uk" selected>UK resident</option>
+                            <option value="nonuk">Non-UK resident</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="view-sel">View</label>
+                        <select id="view-sel">
+                            <option value="marginal" selected>Marginal rate</option>
+                            <option value="effective">Effective rate</option>
+                            <option value="tax">Tax due</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="ctl-label" for="range-sel">Price range</label>
+                        <select id="range-sel">
+                            <option value="500000">&pound;0 &ndash; &pound;500k</option>
+                            <option value="1000000" selected>&pound;0 &ndash; &pound;1m</option>
+                            <option value="2000000">&pound;0 &ndash; &pound;2m</option>
+                            <option value="5000000">&pound;0 &ndash; &pound;5m</option>
+                        </select>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="stats" id="stats"></div>
+
+                <div class="card">
+                    <div class="plot-wrap">
+                        <svg class="chart" id="chart" viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet"
+                                  role="img" tabindex="0" aria-label="Stamp duty by purchase price."></svg>
+                        <div class="tip" id="tip" role="status" aria-live="polite"></div>
+                        <div class="empty" id="empty" hidden>Select at least one regime to plot.</div>
+                    </div>
+                    <div class="legend" id="legend"></div>
+                </div>
+                <p class="caption" id="caption"></p>
+
+                <section class="block">
+                    <h2>Rate bands</h2>
+                    <div class="tbl-scroll">
+                        <table id="table"></table>
+                    </div>
+                </section>
+
+                <details class="notes">
+                    <summary>Assumptions &amp; sources</summary>
+                    <div class="figures" id="figures"></div>
+                    <ul>
+                        <li><strong>Three separate taxes, not three rates of one tax.</strong> Stamp
+                            Duty Land Tax applies in England and Northern Ireland, Land and Buildings
+                            Transaction Tax in Scotland, and Land Transaction Tax in Wales. They have
+                            different bands, different thresholds, different reliefs, and they
+                            disagree about who counts as needing help. Which one you pay is decided
+                            by where the property is, not where you live.</li>
+                        <li><strong>All three are slice taxes.</strong> Each band's rate applies only
+                            to the part of the price falling inside it, so crossing a threshold never
+                            makes the whole purchase more expensive. That was the old "slab" system,
+                            abolished for SDLT in 2014, and it is why the marginal rate chart is a
+                            clean staircase. The genuine cliff edges that remain are the reliefs and
+                            surcharges below, which switch a whole schedule on or off.</li>
+                        <li><strong>First-time buyer relief is where the regimes differ most.</strong>
+                            England and Northern Ireland give a £300,000 nil band and a 5% band to
+                            £500,000 &mdash; but the relief vanishes entirely above £500,000, so a
+                            pound over the limit costs about <strong>£5,000</strong>. Scotland gives a
+                            smaller relief, a nil band of £175,000 worth up to £600, but with
+                            <em>no upper price limit</em> at all. Wales gives no first-time buyer
+                            relief whatsoever, so in Wales a first-time buyer pays the standard
+                            rates.</li>
+                        <li><strong>The surcharges start at £40,000, and they start abruptly.</strong>
+                            Buy an additional property for £39,999 and no surcharge applies; buy it
+                            for £40,000 and the whole price is surcharged. That is a cliff of
+                            £2,000 in England and Northern Ireland, £2,000 in Wales and
+                            <strong>£3,200</strong> in Scotland, where the Additional Dwelling
+                            Supplement is charged at 8% on the entire price rather than through a
+                            separate band schedule.</li>
+                        <li><strong>England and Northern Ireland reached the surcharge a different
+                            way.</strong> Its higher rates for additional dwellings are a whole
+                            separate schedule, but the schedule works out at exactly the standard
+                            rates plus 5% of the whole price &mdash; an identity the self-checks
+                            below assert at every price. Wales does the same thing with its own
+                            higher schedule, which is broadly five points above its main rates.</li>
+                        <li><strong>The non-UK resident surcharge is SDLT only.</strong> Two
+                            percentage points on every band, including the nil band, so a non-resident
+                            pays 2% from the first pound. Scotland and Wales have no equivalent, which
+                            is why changing the residence control moves only one line.</li>
+                        <li><strong>Companies.</strong> In England and Northern Ireland a company or
+                            other non-natural person buying a dwelling for more than £500,000 pays a
+                            flat <strong>17%</strong> on the whole price &mdash; not a slice ladder,
+                            which is why that line goes flat and why the tax jumps at £500,000.
+                            Crucially, that flat rate is commonly disapplied: a genuine property
+                            rental business, a property developer or a trade using the dwelling can
+                            usually claim relief and fall back to the higher rates for additional
+                            dwellings. This tool shows the flat rate, because that is the default,
+                            but for most corporate landlords the additional-property line is the
+                            realistic one. Scotland and Wales have no flat-rate equivalent; a company
+                            there simply pays the additional-property rates.</li>
+                        <li><strong>Not modelled:</strong> leases, where the rent is taxed separately
+                            on its net present value and the rules diverge again between the three
+                            regimes; multiple dwellings and linked transactions; the six-dwelling rule
+                            that makes a bulk purchase non-residential; mixed-use apportionment;
+                            replacement-of-main-residence refunds when the old home sells within the
+                            time limit; group, charity and other reliefs; anything about who is a
+                            first-time buyer or what counts as a dwelling. Every one of those can move
+                            the answer a long way.</li>
+                        <li><strong>The two tax years are identical.</strong> Nothing in any of the
+                            three regimes changed between them: SDLT last moved on 1 April 2025 when
+                            the temporary thresholds ended, Scotland's Additional Dwelling Supplement
+                            on 5 December 2024, and Wales's higher residential rates on 11 December
+                            2024. The Scottish and Welsh Budgets for 2026-27 both held their rates,
+                            and no SDLT change was announced. The year selector is kept so the two
+                            years diverge cleanly when one of them does.</li>
+                        <li><strong>Rates were checked against the published tables</strong> for each
+                            regime rather than carried over from memory, and every figure in the
+                            self-checks below was computed by hand from the bands before the code was
+                            written. Dates of effect are stated above so you can tell whether this
+                            page has gone stale.</li>
+                    </ul>
+                    <p class="selfcheck" id="selfcheck"></p>
+                </details>
+        </div>
+    </main>
+
+    <p class="disclaimer">An illustration, not tax advice, and stamp duty is a tax where the
+        detail decides the answer. Check the assumptions before relying on anything here, and
+        take advice on anything involving a company, a lease, more than one dwelling or a
+        property that is not simply somebody's home.</p>
+
+    <footer class="site-footer">
+        <span>&copy; 2026 Hash Brown Engineering Limited</span>
+        <span>Registered in Scotland no. SC644189</span>
+    </footer>
+
+</div>
+
+<script src="/assets/uk-tax.js"></script>
+<script>
+(function () {
+    "use strict";
+
+    /* ============================================================
+          RATE TABLES
+          ------------------------------------------------------------
+          Each schedule is [[upTo, rate], ...] and every one of these taxes
+          is a SLICE tax: a band's rate applies only to the part of the
+          price inside it. UKTax.ladder turns the pairs into the band list
+          the shared primitives expect, and UKTax.amountAt then integrates
+          it into the tax due.
+
+          Nothing changed between the two tax years this tool covers, so
+          both point at the same tables. The dates of effect are noted
+          against each; when a year diverges, copy the table, edit the copy
+          and point that year at it.
+          ============================================================ */
+
+    var INF = Infinity;
+
+    // SDLT — England & Northern Ireland. Standard rates reverted to these on
+    // 1 April 2025; the additional-dwelling schedule and the flat rate for
+    // non-natural persons both date from 31 October 2024.
+    var SDLT = {
+        standard:   [[125000, 0], [250000, 2], [925000, 5], [1500000, 10], [INF, 12]],
+        ftb:        [[300000, 0], [INF, 5]],
+        ftbMaxPrice: 500000,          // relief is lost entirely above this
+        additional: [[125000, 5], [250000, 7], [925000, 10], [1500000, 15], [INF, 17]],
+        surchargeFrom: 40000,
+        companyFlat: { price: 500000, rate: 17 },
+        nonResidentPlus: 2,
+        nonres:     [[150000, 0], [250000, 2], [INF, 5]]
+    };
+
+    // LBTT — Scotland. The Additional Dwelling Supplement rose to 8% on
+    // 5 December 2024 and is charged on the WHOLE price, not through a
+    // separate schedule. The 2026-27 Scottish Budget held every rate.
+    var LBTT = {
+        standard: [[145000, 0], [250000, 2], [325000, 5], [750000, 10], [INF, 12]],
+        ftb:      [[175000, 0], [250000, 2], [325000, 5], [750000, 10], [INF, 12]],
+        ads:      { rate: 8, minPrice: 40000 },
+        nonres:   [[150000, 0], [250000, 1], [INF, 5]]
+    };
+
+    // LTT — Wales. Main rates unchanged since 10 October 2022; the higher
+    // residential schedule went up one point in every band on
+    // 11 December 2024. There is no first-time buyer relief in Wales.
+    var LTT = {
+        standard: [[225000, 0], [400000, 6], [750000, 7.5], [1500000, 10], [INF, 12]],
+        higher:   [[180000, 5], [250000, 8.5], [400000, 10], [750000, 12.5],
+                   [1500000, 15], [INF, 17]],
+        surchargeFrom: 40000,
+        nonres:   [[225000, 0], [250000, 1], [1000000, 5], [INF, 6]]
+    };
+
+    var RATES = { sdlt: SDLT, lbtt: LBTT, ltt: LTT };
+
+    var YEARS = {
+        "2025-26": { label: "2025/26", rates: RATES },
+        "2026-27": { label: "2026/27", rates: RATES }
+    };
+    var YEAR_ORDER = ["2026-27", "2025-26"];
+
+    var REGIMES = [
+        { id: "sdlt", label: "SDLT", place: "England & NI", cssVar: "--series-1", dash: null },
+        { id: "lbtt", label: "LBTT", place: "Scotland",     cssVar: "--series-2", dash: "7 4" },
+        { id: "ltt",  label: "LTT",  place: "Wales",        cssVar: "--series-3", dash: "2 3" }
+    ];
+
+    var state = {
+        year: YEAR_ORDER[0],
+        regimes: { sdlt: true, lbtt: true, ltt: true },
+        price: 300000,
+        priceRaw: "300,000",
+        type: "residential",
+        buyer: "standard",
+        residence: "uk",
+        view: "marginal",
+        xMax: 1000000
+    };
+
+    /* ============================================================
+          WHAT APPLIES TO THIS BUYER
+          ------------------------------------------------------------
+          One function turns the controls into a description of the charge,
+          and everything else reads only from that. The four shapes a UK
+          property tax can take are all here:
+
+            bands        the slice ladder normally used
+            fallback     the ladder used outside the window below
+            from / to    the price window in which `bands` applies -- a
+                         surcharge that starts at £40,000, or a relief that
+                         is lost above £500,000
+            surcharge    a percentage of the WHOLE price (Scotland's ADS)
+            flatAbove    a flat percentage replacing the ladder entirely
+                         (a company buying above £500,000 in England)
+          ============================================================ */
+
+    function plus(bands, points) {
+        if (!points) return bands;
+        return bands.map(function (b) { return [b[0], b[1] + points]; });
+    }
+
+    function configFor(regimeId) {
+        var r = YEARS[state.year].rates[regimeId];
+        var nonUk = state.residence === "nonuk";
+
+        // Surcharges, reliefs and the non-resident premium are all residential
+        // only: a shop is a shop whoever buys it.
+        if (state.type === "nonres") {
+            return { bands: UKTax.ladder(r.nonres), fallback: UKTax.ladder(r.nonres) };
+        }
+
+        var extra = (regimeId === "sdlt" && nonUk) ? r.nonResidentPlus : 0;
+        var standard = UKTax.ladder(plus(r.standard, extra));
+        var cfg = { bands: standard, fallback: standard };
+
+        if (regimeId === "sdlt") {
+            if (state.buyer === "ftb") {
+                cfg.bands = UKTax.ladder(plus(r.ftb, extra));
+                cfg.to = r.ftbMaxPrice;
+            } else if (state.buyer === "additional") {
+                cfg.bands = UKTax.ladder(plus(r.additional, extra));
+                cfg.from = r.surchargeFrom;
+            } else if (state.buyer === "company") {
+                cfg.bands = UKTax.ladder(plus(r.additional, extra));
+                cfg.from = r.surchargeFrom;
+                // The flat rate is a rate in its own right; the non-resident
+                // premium is not added to it here. See the notes.
+                cfg.flatAbove = r.companyFlat;
+            }
+            return cfg;
+        }
+
+        if (regimeId === "lbtt") {
+            if (state.buyer === "ftb") {
+                cfg.bands = UKTax.ladder(r.ftb);
+            } else if (state.buyer === "additional" || state.buyer === "company") {
+                cfg.surcharge = r.ads;
+            }
+            return cfg;
+        }
+
+        // Wales. No first-time buyer relief at all, so a first-time buyer
+        // simply pays the main rates.
+        if (state.buyer === "additional" || state.buyer === "company") {
+            cfg.bands = UKTax.ladder(r.higher);
+            cfg.from = r.surchargeFrom;
+        }
+        return cfg;
+    }
+
+    function activeBands(cfg, price) {
+        if (cfg.from !== undefined && price < cfg.from) return cfg.fallback;
+        if (cfg.to !== undefined && price > cfg.to) return cfg.fallback;
+        return cfg.bands;
+    }
+
+    function taxAt(regimeId, price) {
+        if (!(price > 0)) return 0;
+        var cfg = configFor(regimeId);
+        if (cfg.flatAbove && price > cfg.flatAbove.price) {
+            return price * cfg.flatAbove.rate / 100;
+        }
+        var tax = UKTax.amountAt(activeBands(cfg, price), price);
+        if (cfg.surcharge && price >= cfg.surcharge.minPrice) {
+            tax += price * cfg.surcharge.rate / 100;
+        }
+        return tax;
+    }
+
+    function marginalAt(regimeId, price) {
+        var cfg = configFor(regimeId);
+        if (cfg.flatAbove && price > cfg.flatAbove.price) return cfg.flatAbove.rate;
+        var rate = UKTax.rateAt(activeBands(cfg, price), price);
+        if (cfg.surcharge && price >= cfg.surcharge.minPrice) rate += cfg.surcharge.rate;
+        return Math.round(rate * 1e6) / 1e6;
+    }
+
+    function effectiveAt(regimeId, price) {
+        return price > 0 ? taxAt(regimeId, price) / price * 100 : 0;
+    }
+
+    function valueAt(regimeId, price) {
+        if (state.view === "marginal") return marginalAt(regimeId, price);
+        if (state.view === "tax") return taxAt(regimeId, price);
+        return effectiveAt(regimeId, price);
+    }
+
+    /* Every price at which the charge changes shape: band edges of both
+          ladders, and the points where a relief or a surcharge switches on or
+          off. Used to build the step chart and to find the notches. */
+    function cutsFor(regimeId) {
+        var cfg = configFor(regimeId), cuts = [], seen = {};
+        function add(v) {
+            if (v > 0 && isFinite(v) && !seen[v]) { seen[v] = 1; cuts.push(v); }
+        }
+        [cfg.bands, cfg.fallback].forEach(function (list) {
+            list.forEach(function (b) { add(b.upTo); });
+        });
+        add(cfg.from); add(cfg.to);
+        if (cfg.surcharge) add(cfg.surcharge.minPrice);
+        if (cfg.flatAbove) add(cfg.flatAbove.price);
+        cuts.sort(function (a, b) { return a - b; });
+        return cuts;
+    }
+
+    /* A notch is a jump in the tax due for no change in price worth
+          mentioning -- a relief lost, or a surcharge switched on across the
+          whole price. These are the cliff edges the chart marks. */
+    function notchesFor(regimeId) {
+        var out = [];
+        cutsFor(regimeId).forEach(function (c) {
+            var jump = taxAt(regimeId, c + 0.005) - taxAt(regimeId, c - 0.005);
+            if (jump > 1) out.push({ at: c, jump: jump });
+        });
+        return out;
+    }
+
+    /* ============================================================
+          Geometry and formatting
+          ============================================================ */
+
+    var VB_W = 920, VB_H = 430;
+    var M = { t: 18, r: 26, b: 46, l: 66 };
+    var PLOT_R = VB_W - M.r, Y0 = VB_H - M.b - 10, PLOT_W = PLOT_R - M.l;
+    var yMax = 20;
+
+    function xS(v) { return M.l + (v / state.xMax) * PLOT_W; }
+    function xInv(px) { return ((px - M.l) / PLOT_W) * state.xMax; }
+    function yS(v) { return Y0 - (v / yMax) * (Y0 - M.t); }
+
+    var gbp = UKTax.gbp, gbpShort = UKTax.gbpShort;
+    function pct(r) { return UKTax.pct(r, 2); }
+    function money(v) { return gbp(v); }
+    function fmtValue(v) { return isMoneyView() ? money(v) : pct(v); }
+    function isMoneyView() { return state.view === "tax"; }
+
+    function niceStep(max, candidates) {
+        for (var i = 0; i < candidates.length; i++) if (max / candidates[i] <= 8) return candidates[i];
+        return candidates[candidates.length - 1];
+    }
+    function computeYMax(series) {
+        var mx = 0;
+        series.forEach(function (s) {
+            curvePoints(s).forEach(function (p) { if (p[1] > mx) mx = p[1]; });
+        });
+        if (isMoneyView()) {
+            if (!(mx > 0)) return 10000;
+            var st = niceStep(mx, [1000, 2000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000]);
+            return Math.ceil(mx / st) * st;
+        }
+        return Math.max(5, Math.ceil((mx || 5) / 5) * 5);
+    }
+    function yTicks() {
+        var out = [], st = isMoneyView()
+            ? niceStep(yMax, [1000, 2000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000])
+            : (yMax <= 10 ? 2 : 5);
+        for (var v = 0; v <= yMax + 1e-9; v += st) out.push(v);
+        return out;
+    }
+    function xTickStep(max) {
+        var c = [50000, 100000, 200000, 250000, 500000, 1000000];
+        for (var i = 0; i < c.length; i++) if (max / c[i] <= 9) return c[i];
+        return c[c.length - 1];
+    }
+
+    var AXIS_TITLE = { marginal: "Rate on the next pound of price",
+                       effective: "Tax as a share of the price",
+                       tax: "Tax due" };
+
+    /* ============================================================
+          Series and curves
+          ============================================================ */
+
+    function activeSeries() {
+        return REGIMES.filter(function (r) { return state.regimes[r.id]; })
+                      .map(function (r) {
+                          return { id: r.id, name: r.label, qual: r.place,
+                                   cssVar: r.cssVar, dash: r.dash };
+                      });
+    }
+
+    function curvePoints(s) {
+        var cuts = cutsFor(s.id), pts = [], seen = {};
+        function add(v) {
+            v = Math.max(0, Math.min(state.xMax, Math.round(v * 100) / 100));
+            if (!seen[v]) { seen[v] = 1; pts.push(v); }
+        }
+        if (state.view === "marginal") {
+            // A step function: a horizontal run to each cut, then a vertical jump.
+            var xs = [0], r = marginalAt(s.id, 0), out = [[0, r]];
+            cuts.forEach(function (c) {
+                if (c >= state.xMax) return;
+                var nr = marginalAt(s.id, c + 0.5);
+                if (nr !== r) { out.push([c, r]); out.push([c, nr]); r = nr; }
+            });
+            out.push([state.xMax, r]);
+            return out;
+        }
+        add(0); add(state.xMax);
+        cuts.forEach(function (c) { add(c); add(c + 0.01); });
+        for (var i = 0; i <= 200; i++) add(state.xMax * i / 200);
+        pts.sort(function (a, b) { return a - b; });
+        return pts.map(function (x) { return [x, valueAt(s.id, x)]; });
+    }
+
+    /* ============================================================
+          SVG helpers and render
+          ============================================================ */
+
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, text) {
+        var n = document.createElementNS(NS, tag);
+        if (attrs) for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function div(cls, text) {
+        var n = document.createElement("div");
+        if (cls) n.className = cls;
+        if (text !== undefined) n.appendChild(document.createTextNode(text));
+        return n;
+    }
+    function pathD(pts) {
+        return pts.map(function (p, i) {
+            return (i ? "L" : "M") + xS(p[0]).toFixed(2) + " " + yS(p[1]).toFixed(2);
+        }).join(" ");
+    }
+
+    var svg = document.getElementById("chart");
+    var tip = document.getElementById("tip");
+    var emptyMsg = document.getElementById("empty");
+    var legendEl = document.getElementById("legend");
+    var captionEl = document.getElementById("caption");
+    var statsEl = document.getElementById("stats");
+    var tableEl = document.getElementById("table");
+    var current = [], hoverX = null;
+
+    function render() {
+        current = activeSeries();
+        yMax = computeYMax(current);
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        emptyMsg.hidden = current.length > 0;
+
+        var gGrid = el("g"), gAxis = el("g"), gData = el("g"), gHover = el("g", { id: "hover" });
+
+        // Notches, marked rather than drawn: no line can carry a step.
+        var marked = {}, notchXs = [];
+        current.forEach(function (s) {
+            notchesFor(s.id).forEach(function (n) {
+                var k = Math.round(n.at);
+                if (!marked[k]) { marked[k] = 1; notchXs.push(n.at); }
+            });
+        });
+        notchXs.forEach(function (nx) {
+            if (nx <= 0 || nx >= state.xMax) return;
+            var cx = xS(nx);
+            gGrid.appendChild(el("line", { x1: cx.toFixed(2), y1: M.t + 20, x2: cx.toFixed(2),
+                y2: Y0, class: "cliff-rule" }));
+            gGrid.appendChild(el("text", { x: (cx - 6).toFixed(2), y: Y0 - 6,
+                class: "cliff-note", "text-anchor": "end" }, "cliff at " + gbpShort(nx)));
+        });
+
+        // The price being asked about, marked on the axis.
+        if (state.price > 0 && state.price < state.xMax) {
+            var px = xS(state.price);
+            gGrid.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2),
+                y2: Y0, class: "crosshair" }));
+        }
+
+        yTicks().forEach(function (v) {
+            var yy = yS(v);
+            if (v > 0) gGrid.appendChild(el("line", { x1: M.l, y1: yy.toFixed(2), x2: PLOT_R,
+                y2: yy.toFixed(2), class: "grid-line" }));
+            gAxis.appendChild(el("text", { x: M.l - 10, y: (yy + 4).toFixed(2), class: "tick-text",
+                "text-anchor": "end" }, isMoneyView() ? gbpShort(v) : v + "%"));
+        });
+
+        gAxis.appendChild(el("line", { x1: M.l, y1: Y0, x2: PLOT_R, y2: Y0, class: "axis-line" }));
+        var step = xTickStep(state.xMax);
+        for (var v = 0; v <= state.xMax + 1; v += step) {
+            var xx = xS(v);
+            gAxis.appendChild(el("line", { x1: xx.toFixed(2), y1: Y0, x2: xx.toFixed(2),
+                y2: Y0 + 5, class: "axis-line" }));
+            gAxis.appendChild(el("text", { x: xx.toFixed(2), y: Y0 + 20, class: "tick-text",
+                "text-anchor": "middle" }, gbpShort(v)));
+        }
+        gAxis.appendChild(el("text", { x: ((M.l + PLOT_R) / 2).toFixed(2), y: VB_H - 6,
+            class: "axis-title", "text-anchor": "middle" }, "Purchase price"));
+        gAxis.appendChild(el("text", { x: 14, y: ((M.t + Y0) / 2).toFixed(2), class: "axis-title",
+            "text-anchor": "middle",
+            transform: "rotate(-90 14 " + ((M.t + Y0) / 2).toFixed(2) + ")" }, AXIS_TITLE[state.view]));
+
+        current.forEach(function (s) {
+            var p = el("path", { d: pathD(curvePoints(s)), class: "series-line" });
+            p.style.stroke = "var(" + s.cssVar + ")";
+            if (s.dash) p.setAttribute("stroke-dasharray", s.dash);
+            gData.appendChild(p);
+        });
+
+        svg.appendChild(gGrid);
+        svg.appendChild(gAxis);
+        svg.appendChild(gData);
+        svg.appendChild(gHover);
+        svg.setAttribute("aria-label", AXIS_TITLE[state.view] + " by purchase price, "
+            + YEARS[state.year].label + ".");
+
+        document.getElementById("year-heading").textContent = YEARS[state.year].label;
+        renderStats();
+        renderLegend();
+        renderCaption();
+        renderFigures();
+        renderTable();
+        if (hoverX !== null) drawHover(hoverX); else clearHover();
+    }
+
+    function keySvg(cssVar, dash) {
+        var s = document.createElementNS(NS, "svg");
+        s.setAttribute("width", 22); s.setAttribute("height", 8);
+        s.setAttribute("viewBox", "0 0 22 8");
+        var l = el("line", { x1: 0, y1: 4, x2: 22, y2: 4, "stroke-width": 2, "stroke-linecap": "round" });
+        l.style.stroke = "var(" + cssVar + ")";
+        if (dash) l.setAttribute("stroke-dasharray", dash);
+        s.appendChild(l);
+        return s;
+    }
+
+    function renderLegend() {
+        while (legendEl.firstChild) legendEl.removeChild(legendEl.firstChild);
+        if (!current.length) { legendEl.style.display = "none"; return; }
+        legendEl.style.display = "";
+        current.forEach(function (s) {
+            var item = div("lg-item");
+            item.appendChild(keySvg(s.cssVar, s.dash));
+            item.appendChild(document.createTextNode(s.name + " · " + s.qual));
+            legendEl.appendChild(item);
+        });
+    }
+
+    /* One tile per regime at the price asked about, with the cheapest flagged.
+          Comparing the three is the whole point of the page. */
+    function renderStats() {
+        while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+        if (!current.length || !(state.price > 0)) return;
+        var cheapest = null;
+        current.forEach(function (s) {
+            var t = taxAt(s.id, state.price);
+            if (cheapest === null || t < cheapest) cheapest = t;
+        });
+        current.forEach(function (s) {
+            var t = taxAt(s.id, state.price);
+            var g = document.createElement("div");
+            g.className = "stat-group" + (t === cheapest && current.length > 1 ? " is-cheapest" : "");
+            var h = document.createElement("h3");
+            h.appendChild(document.createTextNode(s.name + " · " + s.qual));
+            if (t === cheapest && current.length > 1) {
+                var flag = document.createElement("span");
+                flag.className = "stat-flag";
+                flag.textContent = "cheapest";
+                h.appendChild(flag);
+            }
+            g.appendChild(h);
+            var row = div("stat-row");
+            var pairs = [["Tax due", money(t)],
+                         ["Effective rate", pct(effectiveAt(s.id, state.price))],
+                         ["Rate on the next pound", pct(marginalAt(s.id, state.price))]];
+            if (current.length > 1) {
+                pairs.push(["Against the cheapest", t === cheapest ? "—" : "+" + money(t - cheapest)]);
+            }
+            pairs.forEach(function (pair) {
+                var cell = document.createElement("div");
+                var lab = document.createElement("span");
+                lab.className = "stat-label";
+                lab.textContent = pair[0];
+                cell.appendChild(lab);
+                cell.appendChild(div("stat-value", pair[1]));
+                row.appendChild(cell);
+            });
+            g.appendChild(row);
+
+            var ns = notchesFor(s.id).filter(function (n) { return n.at > state.price; });
+            if (ns.length) {
+                g.appendChild(div("stat-note", "Next cliff at " + gbp(ns[0].at) + ", where the tax "
+                    + "jumps by " + money(ns[0].jump) + " for one more pound of price."));
+            }
+            statsEl.appendChild(g);
+        });
+    }
+
+    var BUYER_LABEL = {
+        standard: "someone moving home who will own one property",
+        ftb: "a first-time buyer",
+        additional: "an additional property — a second home or a buy-to-let",
+        company: "a company or other non-natural person"
+    };
+
+    function renderCaption() {
+        if (!current.length) { captionEl.textContent = ""; return; }
+        var parts = [];
+        parts.push(state.type === "nonres"
+            ? "Non-residential and mixed-use property. Surcharges, first-time buyer relief and "
+                + "the non-resident premium are all residential only, so the buyer controls have "
+                + "no effect here."
+            : "Charged as it would be for " + BUYER_LABEL[state.buyer] + ".");
+
+        if (state.type === "residential") {
+            if (state.buyer === "ftb") {
+                parts.push("Wales has no first-time buyer relief, so its line is the same as for "
+                    + "anyone else. Scotland's relief is smaller than England's but has no upper "
+                    + "price limit, while England's disappears above " + gbp(SDLT.ftbMaxPrice) + ".");
+            } else if (state.buyer === "additional" || state.buyer === "company") {
+                parts.push("Scotland charges its supplement at " + LBTT.ads.rate
+                    + "% of the whole price rather than through a separate ladder, which is why "
+                    + "its line steps up furthest at " + gbp(LBTT.ads.minPrice) + ".");
+            }
+            if (state.residence === "nonuk") {
+                parts.push("The non-UK resident surcharge of " + SDLT.nonResidentPlus
+                    + " percentage points is an SDLT rule only, so it moves the England and "
+                    + "Northern Ireland line and nothing else.");
+            }
+        }
+        if (state.view === "marginal") {
+            parts.push("All three are slice taxes, so this is the rate on the next pound of price, "
+                + "not on the whole purchase.");
+        } else if (state.view === "effective") {
+            parts.push("Effective rate is the tax divided by the price, so it always sits below "
+                + "the marginal rate.");
+        }
+        captionEl.textContent = parts.join(" ");
+    }
+
+    function renderFigures() {
+        var host = document.getElementById("figures");
+        while (host.firstChild) host.removeChild(host.firstChild);
+        var h = document.createElement("h4");
+        h.textContent = "Figures for " + YEARS[state.year].label;
+        host.appendChild(h);
+        var dl = document.createElement("dl");
+        function row(term, value) {
+            var dt = document.createElement("dt"); dt.textContent = term;
+            var dd = document.createElement("dd"); dd.textContent = value;
+            dl.appendChild(dt); dl.appendChild(dd);
+        }
+        function ladderText(pairs) {
+            var prev = 0;
+            return pairs.map(function (b) {
+                var range = isFinite(b[0]) ? gbp(prev) + " – " + gbp(b[0]) : "over " + gbp(prev);
+                prev = b[0];
+                return b[1] + "% (" + range + ")";
+            }).join("; ");
+        }
+        row("SDLT residential", ladderText(SDLT.standard));
+        row("SDLT first-time buyer", ladderText(SDLT.ftb) + ", lost above " + gbp(SDLT.ftbMaxPrice));
+        row("SDLT additional dwelling", ladderText(SDLT.additional)
+            + ", from " + gbp(SDLT.surchargeFrom));
+        row("SDLT company flat rate", SDLT.companyFlat.rate + "% on the whole price above "
+            + gbp(SDLT.companyFlat.price));
+        row("SDLT non-resident", "+" + SDLT.nonResidentPlus + " points on every band");
+        row("SDLT non-residential", ladderText(SDLT.nonres));
+        row("LBTT residential", ladderText(LBTT.standard));
+        row("LBTT first-time buyer", "nil band raised to " + gbp(LBTT.ftb[0][0])
+            + ", worth up to " + gbp((LBTT.ftb[0][0] - LBTT.standard[0][0]) * 0.02)
+            + ", with no upper price limit");
+        row("LBTT additional dwelling", LBTT.ads.rate + "% of the whole price from "
+            + gbp(LBTT.ads.minPrice));
+        row("LBTT non-residential", ladderText(LBTT.nonres));
+        row("LTT residential", ladderText(LTT.standard));
+        row("LTT first-time buyer", "no relief in Wales");
+        row("LTT higher residential", ladderText(LTT.higher) + ", from " + gbp(LTT.surchargeFrom));
+        row("LTT non-residential", ladderText(LTT.nonres));
+        host.appendChild(dl);
+    }
+
+    function renderTable() {
+        while (tableEl.firstChild) tableEl.removeChild(tableEl.firstChild);
+        if (!current.length) return;
+        var marginal = state.view === "marginal";
+
+        var cap = document.createElement("caption");
+        cap.textContent = marginal
+            ? "Rate on the next pound of price in each band, " + YEARS[state.year].label
+                + ". Bands cover the full price scale, including any beyond the chart's range."
+            : (isMoneyView() ? "Tax due at selected prices, " : "Effective rate at selected prices, ")
+                + YEARS[state.year].label + ". Rows follow the chart's current range.";
+        tableEl.appendChild(cap);
+
+        var thead = document.createElement("thead"), hr = document.createElement("tr");
+        var th0 = document.createElement("th");
+        th0.scope = "col";
+        th0.textContent = marginal ? "Price band" : "Price";
+        hr.appendChild(th0);
+        current.forEach(function (s) {
+            var th = document.createElement("th");
+            th.scope = "col";
+            var k = document.createElement("span");
+            k.className = "th-key";
+            k.style.background = "var(" + s.cssVar + ")";
+            th.appendChild(k);
+            th.appendChild(document.createTextNode(s.name));
+            var q = document.createElement("span");
+            q.className = "th-qual";
+            q.textContent = s.qual;
+            th.appendChild(q);
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        tableEl.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+        function addRow(label, valueFor) {
+            var tr = document.createElement("tr");
+            var td0 = document.createElement("td");
+            td0.textContent = label;
+            tr.appendChild(td0);
+            current.forEach(function (s) {
+                var td = document.createElement("td");
+                td.textContent = valueFor(s);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+
+        if (marginal) {
+            var cuts = [], seen = {};
+            current.forEach(function (s) {
+                cutsFor(s.id).forEach(function (c) {
+                    if (!seen[c]) { seen[c] = 1; cuts.push(c); }
+                });
+            });
+            cuts.sort(function (a, b) { return a - b; });
+            cuts.push(Infinity);
+            var prev = 0;
+            cuts.forEach(function (upTo) {
+                var sample = isFinite(upTo) ? (prev + upTo) / 2 : prev + 100000;
+                addRow(isFinite(upTo) ? gbp(prev) + " – " + gbp(upTo) : "Over " + gbp(prev),
+                       function (s) { return pct(marginalAt(s.id, sample)); });
+                prev = upTo;
+            });
+        } else {
+            var st = xTickStep(state.xMax);
+            for (var v = st; v <= state.xMax + 1; v += st) {
+                (function (price) {
+                    addRow(gbp(price), function (s) { return fmtValue(valueAt(s.id, price)); });
+                })(v);
+            }
+        }
+        tableEl.appendChild(tbody);
+    }
+
+    /* ============================================================
+          Hover
+          ============================================================ */
+
+    function clearHover() {
+        var g = svg.querySelector("#hover");
+        if (g) while (g.firstChild) g.removeChild(g.firstChild);
+        tip.classList.remove("on");
+    }
+
+    function drawHover(price) {
+        var g = svg.querySelector("#hover");
+        if (!g || !current.length) return;
+        while (g.firstChild) g.removeChild(g.firstChild);
+        var px = xS(price);
+        g.appendChild(el("line", { x1: px.toFixed(2), y1: M.t, x2: px.toFixed(2), y2: Y0,
+            class: "crosshair" }));
+        current.forEach(function (s) {
+            var c = el("circle", { cx: px.toFixed(2), cy: yS(valueAt(s.id, price)).toFixed(2),
+                r: 4.5, class: "hover-dot" });
+            c.style.fill = "var(" + s.cssVar + ")";
+            g.appendChild(c);
+        });
+
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        tip.appendChild(div("tip-head", gbp(price)));
+        current.forEach(function (s) {
+            var row = div("tip-row");
+            var key = div("tip-key");
+            key.style.background = "var(" + s.cssVar + ")";
+            if (s.dash) key.style.background =
+                "repeating-linear-gradient(90deg, var(" + s.cssVar + ") 0 5px, transparent 5px 8px)";
+            row.appendChild(key);
+            row.appendChild(div("tip-name", s.name + " · " + s.qual));
+            row.appendChild(div("tip-val", fmtValue(valueAt(s.id, price))));
+            tip.appendChild(row);
+            tip.appendChild(div("tip-band", money(taxAt(s.id, price)) + " due · "
+                + pct(effectiveAt(s.id, price)) + " effective"));
+        });
+
+        var rect = svg.getBoundingClientRect();
+        var scale = rect.width / VB_W;
+        var left = px * scale + 16;
+        tip.classList.add("on");
+        var tw = tip.offsetWidth;
+        if (left + tw > rect.width - 4) left = px * scale - tw - 16;
+        tip.style.left = Math.max(4, left) + "px";
+        tip.style.top = Math.max(4, Math.min(rect.height - tip.offsetHeight - 4,
+                                             rect.height * 0.16)) + "px";
+    }
+
+    function priceFromEvent(e) {
+        var rect = svg.getBoundingClientRect();
+        var px = ((e.clientX - rect.left) / rect.width) * VB_W;
+        if (px < M.l - 2 || px > PLOT_R + 2) return null;
+        var v = Math.round(xInv(px) / 1000) * 1000;
+        return Math.max(0, Math.min(state.xMax, v));
+    }
+
+    svg.addEventListener("pointermove", function (e) {
+        if (!current.length) return;
+        var v = priceFromEvent(e);
+        if (v === null) { hoverX = null; clearHover(); return; }
+        hoverX = v; drawHover(v);
+    });
+    svg.addEventListener("pointerleave", function () { hoverX = null; clearHover(); });
+    svg.addEventListener("keydown", function (e) {
+        if (!current.length) return;
+        var stepK = e.shiftKey ? state.xMax / 20 : state.xMax / 100;
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            var base = hoverX === null ? state.xMax / 2 : hoverX;
+            hoverX = Math.max(0, Math.min(state.xMax,
+                Math.round((base + (e.key === "ArrowRight" ? stepK : -stepK)) / 1000) * 1000));
+            drawHover(hoverX);
+            e.preventDefault();
+        } else if (e.key === "Escape") { hoverX = null; clearHover(); }
+    });
+    svg.addEventListener("blur", function () { hoverX = null; clearHover(); });
+
+    /* ============================================================
+          Controls
+          ============================================================ */
+
+    var priceEl = document.getElementById("price");
+    var buyerEl = document.getElementById("buyer-sel");
+    var residenceEl = document.getElementById("resident-sel");
+
+    function makeChip(label, checked, tickColor, onToggle) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", checked ? "true" : "false");
+        if (tickColor) b.style.setProperty("--tick-col", tickColor);
+        var t = document.createElement("span");
+        t.className = "tick";
+        t.setAttribute("aria-hidden", "true");
+        b.appendChild(t);
+        b.appendChild(document.createTextNode(label));
+        b.addEventListener("click", function () {
+            var next = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", next ? "true" : "false");
+            onToggle(next);
+            hoverX = null;
+            render();
+        });
+        return b;
+    }
+
+    var regimeChips = document.getElementById("regime-chips");
+    REGIMES.forEach(function (r) {
+        regimeChips.appendChild(makeChip(r.label + " · " + r.place, state.regimes[r.id],
+            "var(" + r.cssVar + ")", function (on) { state.regimes[r.id] = on; }));
+    });
+
+    // Nothing about the buyer changes a non-residential charge, so say so by
+    // disabling the controls rather than letting them look effective.
+    function syncBuyerControls() {
+        var off = state.type === "nonres";
+        [buyerEl, residenceEl].forEach(function (sel) {
+            sel.disabled = off;
+            sel.title = off ? "Surcharges and reliefs are residential only" : "";
+        });
+    }
+
+    function readPrice() {
+        var raw = priceEl.value.replace(/[£,\s]/g, "");
+        var n = Number(raw);
+        state.priceRaw = priceEl.value;
+        state.price = (raw !== "" && isFinite(n) && n >= 0) ? n : 0;
+    }
+
+    priceEl.addEventListener("input", function () { readPrice(); render(); });
+    priceEl.addEventListener("blur", function () {
+        if (state.price > 0) priceEl.value = state.price.toLocaleString("en-GB");
+    });
+
+    document.getElementById("year-sel").addEventListener("change", function (e) {
+        state.year = e.target.value; hoverX = null; render();
+    });
+    document.getElementById("type-sel").addEventListener("change", function (e) {
+        state.type = e.target.value;
+        syncBuyerControls();
+        hoverX = null;
+        render();
+    });
+    buyerEl.addEventListener("change", function (e) { state.buyer = e.target.value; hoverX = null; render(); });
+    residenceEl.addEventListener("change", function (e) { state.residence = e.target.value; hoverX = null; render(); });
+    document.getElementById("view-sel").addEventListener("change", function (e) {
+        state.view = e.target.value; hoverX = null; render();
+    });
+    document.getElementById("range-sel").addEventListener("change", function (e) {
+        state.xMax = Number(e.target.value); hoverX = null; render();
+    });
+
+    function buildYearOptions() {
+        var sel = document.getElementById("year-sel");
+        YEAR_ORDER.forEach(function (id) {
+            var o = document.createElement("option");
+            o.value = id;
+            o.textContent = YEARS[id].label;
+            if (id === state.year) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    /* ============================================================
+          SELF-CHECKS
+          ------------------------------------------------------------
+          Every figure pinned below was worked out by hand from the published
+          bands before this file was written, so it tests the code rather than
+          restating it. The structural checks assert the things the notes
+          claim: that these are slice taxes, that England's additional-dwelling
+          schedule is exactly the standard rates plus 5% of the whole price,
+          that Wales has no first-time buyer relief, and that the cliffs are
+          the size the page says they are.
+          ============================================================ */
+
+    // [regime, property type, buyer, residence, price, tax due]
+    var PINNED = [
+        ["sdlt", "residential", "standard",   "uk",    300000, 5000],
+        ["sdlt", "residential", "standard",   "uk",    500000, 15000],
+        ["sdlt", "residential", "standard",   "uk",   1000000, 43750],
+        ["sdlt", "residential", "ftb",        "uk",    300000, 0],
+        ["sdlt", "residential", "ftb",        "uk",    500000, 10000],
+        ["sdlt", "residential", "additional", "uk",    300000, 20000],
+        ["sdlt", "residential", "additional", "uk",     40000, 2000],
+        ["sdlt", "residential", "additional", "uk",     39999, 0],
+        ["sdlt", "residential", "standard",   "nonuk", 300000, 11000],
+        ["sdlt", "residential", "company",    "uk",    600000, 102000],
+        ["sdlt", "nonres",      "standard",   "uk",    300000, 4500],
+        ["lbtt", "residential", "standard",   "uk",    300000, 4600],
+        ["lbtt", "residential", "ftb",        "uk",    300000, 4000],
+        ["lbtt", "residential", "additional", "uk",    300000, 28600],
+        ["lbtt", "residential", "standard",   "nonuk", 300000, 4600],
+        ["lbtt", "nonres",      "standard",   "uk",    300000, 3500],
+        ["ltt",  "residential", "standard",   "uk",    300000, 4500],
+        ["ltt",  "residential", "standard",   "uk",    500000, 18000],
+        ["ltt",  "residential", "ftb",        "uk",    300000, 4500],
+        ["ltt",  "residential", "additional", "uk",    300000, 19950],
+        ["ltt",  "nonres",      "standard",   "uk",    300000, 2750]
+    ];
+
+    // [regime, buyer, price of the cliff, size of the jump]
+    var PINNED_CLIFFS = [
+        ["sdlt", "ftb",        500000, 5000],
+        ["sdlt", "additional",  40000, 2000],
+        ["lbtt", "additional",  40000, 3200],
+        ["ltt",  "additional",  40000, 2000]
+    ];
+
+    function runSelfChecks() {
+        var harness = UKTax.checker();
+        var check = harness.check, near = harness.near;
+        var saved = { type: state.type, buyer: state.buyer, residence: state.residence,
+                      year: state.year };
+
+        function setBuyer(year, type, buyer, residence) {
+            state.year = year; state.type = type; state.buyer = buyer; state.residence = residence;
+        }
+
+        /* -- the rate tables are the shape everything assumes ----------- */
+        [["SDLT standard", SDLT.standard], ["SDLT first-time buyer", SDLT.ftb],
+         ["SDLT additional", SDLT.additional], ["SDLT non-residential", SDLT.nonres],
+         ["LBTT standard", LBTT.standard], ["LBTT first-time buyer", LBTT.ftb],
+         ["LBTT non-residential", LBTT.nonres], ["LTT standard", LTT.standard],
+         ["LTT higher", LTT.higher], ["LTT non-residential", LTT.nonres]
+        ].forEach(function (t) {
+            var pairs = t[1], sorted = true, sane = true;
+            for (var i = 0; i < pairs.length; i++) {
+                if (i && !(pairs[i][0] > pairs[i - 1][0])) sorted = false;
+                if (!(pairs[i][1] >= 0) || !isFinite(pairs[i][1])) sane = false;
+            }
+            check(t[0] + ": thresholds ascend", sorted);
+            check(t[0] + ": rates are sane", sane);
+            check(t[0] + ": the top band is open-ended", pairs[pairs.length - 1][0] === INF);
+        });
+
+        Object.keys(YEARS).forEach(function (yid) {
+            var tag = yid + ": ";
+
+            /* -- these are slice taxes, so the tax is continuous across every
+                  band edge. A jump there would mean the old slab system. ---- */
+            ["residential", "nonres"].forEach(function (type) {
+                ["standard", "ftb", "additional", "company"].forEach(function (buyer) {
+                    setBuyer(yid, type, buyer, "uk");
+                    REGIMES.forEach(function (r) {
+                        var cfg = configFor(r.id);
+                        cfg.bands.forEach(function (b) {
+                            if (!isFinite(b.upTo)) return;
+                            // Skip an edge that is also a switch point: a relief
+                            // lost or a surcharge started is a real jump.
+                            if (b.upTo === cfg.from || b.upTo === cfg.to) return;
+                            if (cfg.flatAbove && b.upTo === cfg.flatAbove.price) return;
+                            if (cfg.surcharge && b.upTo === cfg.surcharge.minPrice) return;
+                            var lo = taxAt(r.id, b.upTo - 0.01), hi = taxAt(r.id, b.upTo + 0.01);
+                            check(tag + r.id + "/" + type + "/" + buyer + ": continuous at "
+                                  + b.upTo, near(lo, hi, 0.05), lo.toFixed(4) + " vs " + hi.toFixed(4));
+                        });
+                    });
+                });
+            });
+
+            /* -- tax never falls as the price rises ------------------------ */
+            ["standard", "ftb", "additional", "company"].forEach(function (buyer) {
+                setBuyer(yid, "residential", buyer, "uk");
+                REGIMES.forEach(function (r) {
+                    var prev = -1, mono = true;
+                    for (var p = 0; p <= 3000000; p += 5000) {
+                        var t = taxAt(r.id, p);
+                        if (t < prev - 0.005) mono = false;
+                        prev = t;
+                    }
+                    check(tag + r.id + "/" + buyer + ": tax never falls as price rises", mono);
+                    check(tag + r.id + "/" + buyer + ": nothing to pay on nothing",
+                          taxAt(r.id, 0) === 0);
+                });
+            });
+
+            /* -- England's additional-dwelling schedule IS the standard rates
+                  plus 5% of the whole price, which the notes claim ---------- */
+            [50000, 150000, 300000, 800000, 1200000, 2000000].forEach(function (p) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var std = taxAt("sdlt", p);
+                setBuyer(yid, "residential", "additional", "uk");
+                var add = taxAt("sdlt", p);
+                check(tag + "SDLT additional is standard + 5% of the price at " + p,
+                      near(add, std + p * 0.05, 0.01), add.toFixed(2) + " vs " + (std + p * 0.05).toFixed(2));
+            });
+
+            /* -- Wales's higher rates run five points above its main rates in
+                  the upper bands ------------------------------------------- */
+            [[500000, 5], [1000000, 5], [2000000, 5]].forEach(function (t) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var main = marginalAt("ltt", t[0]);
+                setBuyer(yid, "residential", "additional", "uk");
+                check(tag + "LTT higher is " + t[1] + " points above main at " + t[0],
+                      near(marginalAt("ltt", t[0]) - main, t[1], 1e-9));
+            });
+
+            /* -- Wales gives no first-time buyer relief -------------------- */
+            [150000, 250000, 400000, 900000].forEach(function (p) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var std = taxAt("ltt", p);
+                setBuyer(yid, "residential", "ftb", "uk");
+                check(tag + "LTT first-time buyer pays the main rates at " + p,
+                      taxAt("ltt", p) === std);
+            });
+
+            /* -- relief never costs more, a surcharge never costs less ----- */
+            [100000, 200000, 300000, 450000, 500000].forEach(function (p) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var std = { sdlt: taxAt("sdlt", p), lbtt: taxAt("lbtt", p) };
+                setBuyer(yid, "residential", "ftb", "uk");
+                check(tag + "SDLT relief never costs more at " + p, taxAt("sdlt", p) <= std.sdlt + 1e-9);
+                check(tag + "LBTT relief never costs more at " + p, taxAt("lbtt", p) <= std.lbtt + 1e-9);
+            });
+            [50000, 300000, 900000].forEach(function (p) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var std = {};
+                REGIMES.forEach(function (r) { std[r.id] = taxAt(r.id, p); });
+                setBuyer(yid, "residential", "additional", "uk");
+                REGIMES.forEach(function (r) {
+                    check(tag + r.id + " additional costs more at " + p,
+                          taxAt(r.id, p) > std[r.id]);
+                });
+            });
+
+            /* -- the non-resident premium is an SDLT rule only ------------- */
+            [200000, 600000].forEach(function (p) {
+                setBuyer(yid, "residential", "standard", "uk");
+                var uk = {};
+                REGIMES.forEach(function (r) { uk[r.id] = taxAt(r.id, p); });
+                setBuyer(yid, "residential", "standard", "nonuk");
+                check(tag + "SDLT charges the non-resident more at " + p,
+                      near(taxAt("sdlt", p), uk.sdlt + p * 0.02, 0.01));
+                check(tag + "LBTT ignores residence at " + p, taxAt("lbtt", p) === uk.lbtt);
+                check(tag + "LTT ignores residence at " + p, taxAt("ltt", p) === uk.ltt);
+            });
+
+            /* -- a non-residential charge ignores the buyer entirely ------- */
+            [100000, 400000, 1500000].forEach(function (p) {
+                setBuyer(yid, "nonres", "standard", "uk");
+                var base = {};
+                REGIMES.forEach(function (r) { base[r.id] = taxAt(r.id, p); });
+                ["ftb", "additional", "company"].forEach(function (buyer) {
+                    setBuyer(yid, "nonres", buyer, "nonuk");
+                    REGIMES.forEach(function (r) {
+                        check(tag + r.id + " non-residential ignores " + buyer + " at " + p,
+                              taxAt(r.id, p) === base[r.id]);
+                    });
+                });
+            });
+        });
+
+        /* -- the two years are identical, which the notes claim ----------- */
+        ["residential", "nonres"].forEach(function (type) {
+            ["standard", "ftb", "additional", "company"].forEach(function (buyer) {
+                [150000, 500000, 1200000].forEach(function (p) {
+                    setBuyer("2025-26", type, buyer, "uk");
+                    var a = REGIMES.map(function (r) { return taxAt(r.id, p); });
+                    setBuyer("2026-27", type, buyer, "uk");
+                    var b = REGIMES.map(function (r) { return taxAt(r.id, p); });
+                    check("the two years agree for " + type + "/" + buyer + " at " + p,
+                          a.join("|") === b.join("|"), a.join("|") + " vs " + b.join("|"));
+                });
+            });
+        });
+
+        /* -- pinned figures, computed by hand from the bands -------------- */
+        PINNED.forEach(function (t) {
+            setBuyer("2026-27", t[1], t[2], t[3]);
+            var got = taxAt(t[0], t[4]);
+            check("pinned " + t[0] + " " + t[1] + "/" + t[2] + "/" + t[3] + " at " + t[4],
+                  near(got, t[5], 0.01), got.toFixed(2) + " vs " + t[5]);
+        });
+
+        /* -- the cliffs are where and what the page says ------------------ */
+        PINNED_CLIFFS.forEach(function (t) {
+            setBuyer("2026-27", "residential", t[1], "uk");
+            var found = notchesFor(t[0]).filter(function (n) { return Math.abs(n.at - t[2]) < 1; });
+            check("cliff exists for " + t[0] + "/" + t[1] + " at " + t[2], found.length === 1);
+            if (found.length === 1) {
+                check("cliff for " + t[0] + "/" + t[1] + " is " + t[3],
+                      near(found[0].jump, t[3], 1), found[0].jump.toFixed(2));
+            }
+        });
+        setBuyer("2026-27", "residential", "company", "uk");
+        check("SDLT company has a cliff at the flat-rate threshold",
+              notchesFor("sdlt").some(function (n) { return Math.abs(n.at - 500000) < 1; }));
+
+        state.type = saved.type; state.buyer = saved.buyer;
+        state.residence = saved.residence; state.year = saved.year;
+
+        harness.report("selfcheck", "across three regimes and "
+            + Object.keys(YEARS).length + " tax years", "__stampSelfChecks");
+
+        // If the calendar has moved past the years covered, say so rather than
+        // quietly showing stale rates.
+        var missing = !YEARS[UKTax.currentTaxYearId()] ? UKTax.currentTaxYearId() : null;
+        if (missing) {
+            var out = document.getElementById("selfcheck");
+            var warn = document.createElement("p");
+            warn.className = "selfcheck bad";
+            warn.textContent = "⚠ The " + missing.replace("-", "/")
+                + " tax year has begun but is not covered here — check the rates.";
+            out.parentNode.insertBefore(warn, out.nextSibling);
+        }
+    }
+
+    buildYearOptions();
+    syncBuyerControls();
+    readPrice();
+    render();
+    runSelfChecks();
+    window.addEventListener("resize", function () { if (hoverX !== null) drawHover(hoverX); });
+})();
+</script>
+</body>
+</html>
