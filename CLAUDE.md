@@ -133,6 +133,17 @@ the tax tools. It defines one global, `UKTax`; load it with a plain
 - **`checker()` is the self-check harness** and `pct(rate, decimalPlaces)` takes
   its precision explicitly, because the tools disagree about it.
 
+Check a rate against the body that sets it, not against commentary. UK-wide
+taxes are on gov.uk; Scottish income tax and LBTT are gov.scot and Revenue
+Scotland; LTT is the Welsh Revenue Authority on gov.wales. Both times a rate
+was in doubt while these tools were built, the culprit was a summary that had
+gone stale at a Budget: one source gave Wales's higher residential rates at the
+figures superseded on 11 December 2024, and the agricultural relief cap was
+still widely quoted at £1m months after it became £2.5m. Fetch the source page
+with `curl` from Bash — it reaches these sites even when `WebFetch` is blocked
+for them — and check the "last updated" date on the page before trusting a
+figure on it.
+
 A tool that plots a marginal rate against something the tax is not levied on —
 company profit before the owner is paid, say — must find its kinks by walking
 each threshold *back* through whatever the tool does to the money, not by
