@@ -55,12 +55,19 @@ var UKTax = (function () {
           noted beside each block, add the id to YEAR_ORDER, and update the
           pinned figures in each tool that uses the block you changed. Every
           tool self-checks on load, so a mistyped figure fails loudly.
+
+          Sources are the setting authority's own pages, noted beside each
+          block as gov.uk/... (or gov.scot/..., legislation.gov.uk/...) paths.
+          Where a 2026-27 block cites nothing of its own, the 2025-26 source
+          covers both years. Check the page's "last updated" date before
+          trusting a figure on it; a stale summary has caught this site out.
           ------------------------------------------------------------------ */
 
     var YEARS = {
         "2025-26": {
             label: "2025/26",
-            // gov.uk/government/publications/rates-and-allowances-income-tax
+            // gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past
+            // gov.uk/income-tax-rates (the £1 per £2 taper above £100,000)
             personalAllowance: 12570,
             taperStart: 100000,          // allowance withdrawn £1 per £2 above this
             basicRateLimit: 37700,       // taxable income; £50,270 gross with a full allowance
@@ -71,7 +78,8 @@ var UKTax = (function () {
                     { upTo: 125140,   rate: 40, name: "Higher rate" },
                     { upTo: Infinity, rate: 45, name: "Additional rate" }
                 ],
-                // gov.scot/publications/scottish-income-tax-rates-and-bands
+                // gov.scot/publications/scottish-income-tax-rates-and-bands/pages/proposed-rates-and-bands-2025-to-2026/
+                // gov.scot publishes gross ranges: each upTo here plus £12,570.
                 sco: [
                     { upTo: 2827,     rate: 19, name: "Starter rate" },
                     { upTo: 14921,    rate: 20, name: "Basic rate" },
@@ -81,10 +89,16 @@ var UKTax = (function () {
                     { upTo: Infinity, rate: 48, name: "Top rate" }
                 ]
             },
-            // The announced two point rise on savings does not begin until 6 April 2027.
+            // The announced two point rise on savings does not begin until 6 April 2027:
+            // gov.uk/government/publications/income-tax-changes-to-tax-rates-for-property-savings-and-dividend-income
+            // Starting rate and personal savings allowance:
+            // gov.uk/apply-tax-free-interest-on-savings/how-much-is-tax-free
             savings: { startingRateBand: 5000, psaBasic: 1000, psaHigher: 500, rates: [20, 40, 45] },
             dividends: { allowance: 500, rates: [8.75, 33.75, 39.35] },
             // BADR rose from 10% to 14% on 6 April 2025.
+            // gov.uk/government/publications/rates-and-allowances-capital-gains-tax
+            // BADR's £1m lifetime limit is in HMRC helpsheet HS275, not the gov.uk guide:
+            // gov.uk/government/publications/entrepreneurs-relief-hs275-self-assessment-helpsheet
             cgt: { aea: 3000, lower: 18, upper: 24, badr: 14, badrLimit: 1000000 },
             /* Inheritance tax. The nil-rate band, the residence nil-rate band and
                   the £2,000,000 taper threshold are frozen to the end of 2030-31.
@@ -104,16 +118,22 @@ var UKTax = (function () {
                   future financial year diverges mid-tax-year, this needs splitting.
                   Marginal relief is main rate on the whole profit, less the fraction
                   times the distance below the upper limit; the limits are divided by
-                  one plus the number of associated companies. */
+                  one plus the number of associated companies.
+                  gov.uk/government/publications/rates-and-allowances-corporation-tax
+                  gov.uk/guidance/corporation-tax-marginal-relief */
             corporationTax: { smallRate: 19, mainRate: 25, lowerLimit: 50000,
                               upperLimit: 250000, fraction: 3 / 200 },
+            // NI, employment allowance and student loans:
+            // gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026
             employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
             employerNI: { secondaryThreshold: 5000, rate: 15, employmentAllowance: 10500 },
             // The annual allowance has been £60,000 since 6 April 2023. The
             // taper for high earners and unused carry-forward are not here.
+            // gov.uk/government/publications/rates-and-allowances-pension-schemes
             pension: { annualAllowance: 60000, taxFreeShare: 25 },
             studentLoans: {
                 // No Plan 5: no Plan 5 repayments fell due before April 2026.
+                // gov.uk/government/publications/student-loans-a-guide-to-terms-and-conditions
                 plans: [
                     { id: "p1", label: "Plan 1", threshold: 26065, rate: 9 },
                     { id: "p2", label: "Plan 2", threshold: 28470, rate: 9 },
@@ -121,10 +141,15 @@ var UKTax = (function () {
                 ],
                 postgraduate: { label: "postgraduate", threshold: 21000, rate: 6 }
             },
+            // gov.uk/government/publications/rates-and-allowances-tax-credits-child-benefit-and-guardians-allowance
             childBenefit: { eldest: 26.05, other: 17.25, weeks: 52 },
+            // gov.uk/child-benefit-tax-charge
             hicbc: { start: 60000, end: 80000 },
+            // gov.uk/tax-free-childcare and .../check-if-youre-eligible;
+            // gov.scot/policies/early-education-and-care/early-learning-and-childcare
             childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 },
             // gov.uk/government/publications/benefit-and-pension-rates-2025-to-2026
+            // Taper: gov.uk/universal-credit/how-your-wages-affect-your-payments
             // Monthly figures, as UC is assessed and published monthly.
             universalCredit: {
                 taper: 55,
@@ -152,6 +177,7 @@ var UKTax = (function () {
                 ],
                 // Scottish starter, basic and intermediate thresholds up 7.4%,
                 // the rest frozen.
+                // gov.scot/publications/scottish-income-tax-rates-and-bands/pages/2026-to-2027/
                 sco: [
                     { upTo: 3967,     rate: 19, name: "Starter rate" },
                     { upTo: 16956,    rate: 20, name: "Basic rate" },
@@ -186,13 +212,17 @@ var UKTax = (function () {
                   future financial year diverges mid-tax-year, this needs splitting.
                   Marginal relief is main rate on the whole profit, less the fraction
                   times the distance below the upper limit; the limits are divided by
-                  one plus the number of associated companies. */
+                  one plus the number of associated companies.
+                  gov.uk/government/publications/rates-and-allowances-corporation-tax
+                  gov.uk/guidance/corporation-tax-marginal-relief */
             corporationTax: { smallRate: 19, mainRate: 25, lowerLimit: 50000,
                               upperLimit: 250000, fraction: 3 / 200 },
+            // gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027
             employeeNI: { primaryThreshold: 12570, upperEarningsLimit: 50270, mainRate: 8, upperRate: 2 },
             employerNI: { secondaryThreshold: 5000, rate: 15, employmentAllowance: 10500 },
             // The annual allowance has been £60,000 since 6 April 2023. The
             // taper for high earners and unused carry-forward are not here.
+            // gov.uk/government/publications/rates-and-allowances-pension-schemes
             pension: { annualAllowance: 60000, taxFreeShare: 25 },
             studentLoans: {
                 plans: [
@@ -203,14 +233,15 @@ var UKTax = (function () {
                 ],
                 postgraduate: { label: "postgraduate", threshold: 21000, rate: 6 }
             },
-            // gov.uk/child-benefit-rates
             childBenefit: { eldest: 27.05, other: 17.90, weeks: 52 },
             hicbc: { start: 60000, end: 80000 },
             childcare: { cliff: 100000, tfcPerChild: 2000, fundedHours: 1140 },
             /* The two-child limit is removed from 6 April 2026, and the health
                   element splits: claims already in payment, terminal illness and the
                   severe conditions criteria keep the protected rate, while a new
-                  award drops to less than half of it. */
+                  award drops to less than half of it.
+                  gov.uk/government/publications/benefit-and-pension-rates-2026-to-2027
+                  legislation.gov.uk/ukpga/2026/13 (removal of the two-child limit) */
             universalCredit: {
                 taper: 55,
                 standardAllowance: { single: 424.90, couple: 666.97 },
